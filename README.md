@@ -135,10 +135,50 @@ Your script receives these variables pre-bound. Standard `import` statements als
 | `result` | `dict` | Put your return data here |
 | `json` | `module` | The `json` module, pre-imported |
 
+### Writing scripts
+
+Scripts are **bare Playwright code** — not Python modules. Don't write `def main()`, `if __name__`, or class definitions. Just write the steps directly, as if you're in the middle of a function that already has `page`, `event`, and `result` in scope.
+
+```python
+# my_script.py — correct
+page.wait_for_selector("h1")
+result["title"] = page.title()
+result["heading"] = page.inner_text("h1")
+```
+
+```python
+# my_script.py — WRONG (will not work)
+def main():
+    page.wait_for_selector("h1")
+    return page.title()
+
+if __name__ == "__main__":
+    main()
+```
+
+Standard imports work at the top of the script:
+
+```python
+import time
+import boto3
+
+page.click("#load-more")
+time.sleep(2)
+result["items"] = page.evaluate("document.querySelectorAll('.item').length")
+```
+
+See the [`examples/`](examples/) directory — every file there is a working script you can upload directly.
+
 ### Loading scripts from S3
 
+Upload a script file and invoke by S3 URI:
+
+```bash
+aws s3 cp my_script.py s3://my-bucket/scripts/my_script.py
+```
+
 ```json
-{"url": "https://example.com", "s3_uri": "s3://my-bucket/scripts/extract.py"}
+{"url": "https://example.com", "s3_uri": "s3://my-bucket/scripts/my_script.py"}
 ```
 
 The Lambda function needs `s3:GetObject` permission on the bucket. The SAM template handles this automatically — pass the bucket name at deploy time:
