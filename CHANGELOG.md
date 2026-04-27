@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 (2026-04-27)
+
+- Add Lightpanda as a second browser backend (`"browser": "lightpanda"`)
+- New `Dockerfile.lightpanda` for lightweight image (~450 MB vs ~1.2 GB)
+- Handler auto-detects available backend at init
+- New Makefile targets: `build-lightpanda`, `test-lightpanda`, `test-all-lightpanda`
+- Lightpanda integration tests (navigation, SPA, params, errors, consecutive invocations)
+
 ## 0.1.0 (2026-04-27)
 
 Initial release.

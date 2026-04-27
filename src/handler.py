@@ -1,8 +1,12 @@
 """
-Playwright + Chromium runtime for AWS Lambda.
+Playwright browser automation runtime for AWS Lambda.
 
-Chromium launches at module level (Lambda init phase -- free, not billed).
-On warm starts the browser is already running; only a new page is created.
+Supports two browser backends:
+  - Chromium (via Playwright, default) — full browser, larger image
+  - Lightpanda (via CDP) — lightweight, faster, smaller image
+
+The handler auto-detects which backend is available based on what's installed
+in the container image. The event field "browser" can request a specific backend.
 
 Accepts a Playwright script via:
   1. event["script"]  -- inline Python code (string)
@@ -20,16 +24,22 @@ The script receives these pre-bound variables:
 Standard imports (import boto3, import time, etc.) work normally in scripts.
 
 Optional event fields:
+  - browser       "chromium" | "lightpanda" (default: auto-detect)
   - url           navigate before running script
   - wait_until    "load" | "domcontentloaded" | "networkidle" | "commit" (default: "load")
   - timeout       seconds (default: 30)
-  - viewport      {width, height} (default: 1280x720)
+  - viewport      {width, height} (default: 1280x720, Chromium only)
   - user_agent    custom User-Agent string
 """
 
 import json
 import os
+import pathlib
+import shutil
+import subprocess
+import time as _time
 import traceback
+import urllib.request
 
 from playwright.sync_api import sync_playwright
 
@@ -57,22 +67,100 @@ CHROMIUM_ARGS = [
 ]
 
 _VALID_WAIT_UNTIL = {"load", "domcontentloaded", "networkidle", "commit"}
+_VALID_BROWSERS = {"chromium", "lightpanda"}
 _DEBUG = os.environ.get("PLAYWRIGHT_DEBUG", "").lower() in ("1", "true")
+_LIGHTPANDA_PORT = 9333
 
-# --- Init phase: launch browser ONCE (free, not billed) ---
+# --- Detect available backends ---
 _pw = sync_playwright().start()
-_browser = _pw.chromium.launch(headless=True, args=CHROMIUM_ARGS)
+
+_CHROMIUM_AVAILABLE = bool(
+    os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+    and any(
+        pathlib.Path(os.environ["PLAYWRIGHT_BROWSERS_PATH"]).glob("chromium-*/chrome-linux*/chrome")
+    )
+)
+_LIGHTPANDA_AVAILABLE = bool(shutil.which("lightpanda"))
 
 
-def _ensure_browser():
-    global _browser
+def _start_lightpanda():
+    """Start Lightpanda subprocess and connect via CDP. Returns (proc, browser) or (None, None)."""
+    proc = subprocess.Popen(
+        [
+            "lightpanda",
+            "serve",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(_LIGHTPANDA_PORT),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL if not _DEBUG else subprocess.PIPE,
+    )
+    for _ in range(30):
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{_LIGHTPANDA_PORT}/json/version", timeout=1)
+            break
+        except Exception:
+            if proc.poll() is not None:
+                return None, None
+            _time.sleep(0.2)
+    else:
+        proc.kill()
+        proc.wait()
+        return None, None
+
     try:
-        if _browser and _browser.is_connected():
-            _browser.contexts  # probe: throws if the browser process died
+        browser = _pw.chromium.connect_over_cdp(f"http://127.0.0.1:{_LIGHTPANDA_PORT}")
+    except Exception:
+        proc.kill()
+        proc.wait()
+        return None, None
+
+    return proc, browser
+
+
+# --- Launch available backend at init (free phase) ---
+_chromium_browser = None
+_lp_browser = None
+_lp_proc = None
+
+if _CHROMIUM_AVAILABLE:
+    _chromium_browser = _pw.chromium.launch(headless=True, args=CHROMIUM_ARGS)
+
+if _LIGHTPANDA_AVAILABLE:
+    _lp_proc, _lp_browser = _start_lightpanda()
+    if _lp_browser is None:
+        _LIGHTPANDA_AVAILABLE = False
+
+
+def _ensure_chromium():
+    global _chromium_browser
+    try:
+        if _chromium_browser and _chromium_browser.is_connected():
+            _chromium_browser.contexts
             return
     except Exception:
         pass
-    _browser = _pw.chromium.launch(headless=True, args=CHROMIUM_ARGS)
+    _chromium_browser = _pw.chromium.launch(headless=True, args=CHROMIUM_ARGS)
+
+
+def _ensure_lightpanda():
+    global _lp_browser, _lp_proc
+    try:
+        if _lp_proc and _lp_proc.poll() is None and _lp_browser and _lp_browser.is_connected():
+            return
+    except Exception:
+        pass
+    if _lp_proc:
+        try:
+            _lp_proc.kill()
+            _lp_proc.wait()
+        except Exception:
+            pass
+    _lp_proc, _lp_browser = _start_lightpanda()
+    if _lp_browser is None:
+        raise RuntimeError("Lightpanda failed to start")
 
 
 def _fetch_script_from_s3(s3_uri):
@@ -91,8 +179,45 @@ def handler(event, context):
     if not event or (not event.get("script") and not event.get("s3_uri")):
         return {"statusCode": 200, "body": "warm"}
 
-    _ensure_browser()
+    # --- Validate and resolve browser backend ---
+    requested = event.get("browser")
+    if requested is not None and requested not in _VALID_BROWSERS:
+        return {
+            "statusCode": 400,
+            "body": f"Field 'browser' must be one of {sorted(_VALID_BROWSERS)}",
+        }
 
+    if requested == "chromium" and not _CHROMIUM_AVAILABLE:
+        return {
+            "statusCode": 400,
+            "body": "Browser 'chromium' is not available in this image",
+        }
+    if requested == "lightpanda" and not _LIGHTPANDA_AVAILABLE:
+        return {
+            "statusCode": 400,
+            "body": "Browser 'lightpanda' is not available in this image",
+        }
+
+    if requested:
+        use_backend = requested
+    elif _CHROMIUM_AVAILABLE:
+        use_backend = "chromium"
+    elif _LIGHTPANDA_AVAILABLE:
+        use_backend = "lightpanda"
+    else:
+        return {"statusCode": 500, "body": "No browser backend available"}
+
+    if use_backend == "chromium":
+        _ensure_chromium()
+        active_browser = _chromium_browser
+    else:
+        try:
+            _ensure_lightpanda()
+        except RuntimeError as e:
+            return {"statusCode": 500, "body": str(e)}
+        active_browser = _lp_browser
+
+    # --- Validate inputs ---
     script = event.get("script")
     s3_uri = event.get("s3_uri")
 
@@ -106,7 +231,10 @@ def handler(event, context):
     try:
         timeout_ms = int(event.get("timeout", 30)) * 1000
     except (TypeError, ValueError):
-        return {"statusCode": 400, "body": "Field 'timeout' must be a number (seconds)"}
+        return {
+            "statusCode": 400,
+            "body": "Field 'timeout' must be a number (seconds)",
+        }
 
     viewport = event.get("viewport", {"width": 1280, "height": 720})
     if not isinstance(viewport, dict) or "width" not in viewport or "height" not in viewport:
@@ -125,17 +253,22 @@ def handler(event, context):
     ctx = None
     page = None
     try:
-        context_kwargs = {"viewport": viewport}
+        context_kwargs = {}
+        if use_backend == "chromium":
+            context_kwargs["viewport"] = viewport
         if event.get("user_agent"):
             context_kwargs["user_agent"] = event["user_agent"]
 
-        ctx = _browser.new_context(**context_kwargs)
+        ctx = active_browser.new_context(**context_kwargs)
         page = ctx.new_page()
         page.set_default_timeout(timeout_ms)
         page.set_default_navigation_timeout(timeout_ms)
 
         if url:
-            page.goto(url, wait_until=wait_until)
+            goto_kwargs = {}
+            if use_backend == "chromium":
+                goto_kwargs["wait_until"] = wait_until
+            page.goto(url, **goto_kwargs)
 
         result = {}
 
@@ -147,7 +280,7 @@ def handler(event, context):
             {
                 "__name__": "__script__",
                 "page": page,
-                "browser": _browser,
+                "browser": active_browser,
                 "context": ctx,
                 "event": event,
                 "result": result,

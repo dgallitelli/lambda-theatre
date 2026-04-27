@@ -5,9 +5,13 @@
 ```mermaid
 flowchart TD
     A["Lambda invocation"] --> B["handler.py"]
-    B --> C{"Browser alive?"}
+    B --> BA{"Resolve backend"}
+    BA -- chromium --> C{"Chromium alive?"}
+    BA -- lightpanda --> LC{"Lightpanda alive?"}
     C -- yes --> D["new_context()"]
     C -- no --> R["relaunch Chromium"] --> D
+    LC -- yes --> D
+    LC -- no --> LR["restart Lightpanda"] --> D
     D --> E["new_page()"]
     E --> F["goto(url)"]
     F --> G["exec(script)"]
@@ -15,8 +19,8 @@ flowchart TD
     H --> I["context.close()"]
     I --> J(["Return result"])
 
-    K["Module-level init\n(free, not billed)"] -.-> L["Chromium launched\nat import time"]
-    L -.-> C
+    K["Module-level init\n(free, not billed)"] -.-> L["Launch available backend\n(Chromium or Lightpanda)"]
+    L -.-> BA
 
     style K fill:#2d6a4f,color:#fff
     style L fill:#2d6a4f,color:#fff
@@ -26,6 +30,15 @@ flowchart TD
 ### Why module-level launch?
 
 Lambda's init phase runs before the first invocation and is **not billed**. By launching Chromium during init, the cold start cost is absorbed into free time. On warm starts (subsequent invocations reusing the same execution environment), the browser is already running — only page creation and navigation are needed.
+
+### Browser backends
+
+The handler supports two backends: Chromium (via Playwright's bundled browser) and Lightpanda (via CDP connection to a subprocess). At module init, the handler detects which backend is installed and launches it eagerly. Only one backend is present per container image.
+
+| Backend | Detection | Connection | Image |
+|---------|-----------|------------|-------|
+| Chromium | `PLAYWRIGHT_BROWSERS_PATH` contains chromium | `_pw.chromium.launch()` | `src/Dockerfile` |
+| Lightpanda | `shutil.which("lightpanda")` | subprocess + `_pw.chromium.connect_over_cdp()` | `src/Dockerfile.lightpanda` |
 
 ### Cold vs. warm start lifecycle
 

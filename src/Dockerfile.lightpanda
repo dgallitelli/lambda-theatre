@@ -1,0 +1,38 @@
+FROM ubuntu:25.04
+
+# Layer 1: OS packages (rarely changes)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip curl ca-certificates && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Layer 2: Playwright Python package + boto3 (NO browser install)
+COPY requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt && \
+    rm -rf /root/.cache/pip /tmp/requirements.txt
+
+# Layer 3: Lightpanda binary
+RUN curl -fsSL -L \
+    "https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-x86_64-linux" \
+    -o /usr/local/bin/lightpanda && \
+    chmod +x /usr/local/bin/lightpanda
+
+# Layer 4: Lambda runtime (rarely changes)
+RUN pip3 install --no-cache-dir --break-system-packages awslambdaric && \
+    rm -rf /root/.cache/pip
+
+RUN curl -fsSL \
+    "https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie" \
+    -o /usr/local/bin/aws-lambda-rie && \
+    chmod +x /usr/local/bin/aws-lambda-rie
+
+COPY entry.sh /entry.sh
+RUN chmod +x /entry.sh
+
+# Layer 5: Handler code (changes most often — LAST)
+COPY handler.py /var/task/
+
+WORKDIR /var/task
+ENV HOME=/tmp
+
+ENTRYPOINT ["/entry.sh"]
+CMD ["handler.handler"]
