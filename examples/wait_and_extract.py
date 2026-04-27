@@ -6,7 +6,8 @@ limit = event["params"].get("limit", 20)
 
 page.wait_for_selector(selector, timeout=10000)
 
-items = page.evaluate("""
+items = page.evaluate(
+    """
     (args) => {
         const els = document.querySelectorAll(args.selector);
         return Array.from(els).slice(0, args.limit).map(el => ({
@@ -14,7 +15,9 @@ items = page.evaluate("""
             href: el.href || null
         }));
     }
-""", {"selector": selector, "limit": limit})
+""",
+    {"selector": selector, "limit": limit},
+)
 
 result["items"] = items
 result["count"] = len(items)

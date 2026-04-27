@@ -26,33 +26,42 @@ class TestArgValidation:
 
     def test_script_and_file_mutual_exclusion(self):
         r = run_invoke(
-            "--script", "pass",
-            "--file", "examples/extract_links.py",
+            "--script",
+            "pass",
+            "--file",
+            "examples/extract_links.py",
         )
         assert r.returncode != 0
         assert "only one" in r.stderr.lower()
 
     def test_script_and_s3_mutual_exclusion(self):
         r = run_invoke(
-            "--script", "pass",
-            "--s3", "s3://bucket/key.py",
+            "--script",
+            "pass",
+            "--s3",
+            "s3://bucket/key.py",
         )
         assert r.returncode != 0
         assert "only one" in r.stderr.lower()
 
     def test_file_and_s3_mutual_exclusion(self):
         r = run_invoke(
-            "--file", "examples/extract_links.py",
-            "--s3", "s3://bucket/key.py",
+            "--file",
+            "examples/extract_links.py",
+            "--s3",
+            "s3://bucket/key.py",
         )
         assert r.returncode != 0
         assert "only one" in r.stderr.lower()
 
     def test_all_three_mutual_exclusion(self):
         r = run_invoke(
-            "--script", "pass",
-            "--file", "examples/extract_links.py",
-            "--s3", "s3://bucket/key.py",
+            "--script",
+            "pass",
+            "--file",
+            "examples/extract_links.py",
+            "--s3",
+            "s3://bucket/key.py",
         )
         assert r.returncode != 0
         assert "only one" in r.stderr.lower()

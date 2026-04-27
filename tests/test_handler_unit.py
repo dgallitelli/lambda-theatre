@@ -3,8 +3,6 @@ Unit tests for handler input validation and warmup logic.
 Run against the container via the Lambda RIE.
 """
 
-import pytest
-
 
 class TestWarmup:
     def test_empty_event_returns_200(self, container):
@@ -43,11 +41,13 @@ class TestInputValidation:
 
     def test_valid_wait_until_values(self, container):
         for val in ["load", "domcontentloaded", "networkidle", "commit"]:
-            r = container({
-                "url": "https://example.com",
-                "script": "result['ok'] = True",
-                "wait_until": val,
-            })
+            r = container(
+                {
+                    "url": "https://example.com",
+                    "script": "result['ok'] = True",
+                    "wait_until": val,
+                }
+            )
             assert r["statusCode"] == 200, f"Failed for wait_until={val}"
 
     def test_invalid_s3_uri_format(self, container):
@@ -62,11 +62,14 @@ class TestInputValidation:
 
 class TestScriptPrecedence:
     def test_script_wins_over_s3(self, container):
-        r = container({
-            "script": "result['source'] = 'inline'",
-            "s3_uri": "s3://nonexistent/script.py",
-        })
+        r = container(
+            {
+                "script": "result['source'] = 'inline'",
+                "s3_uri": "s3://nonexistent/script.py",
+            }
+        )
         assert r["statusCode"] == 200
         import json
+
         body = json.loads(r["body"])
         assert body["source"] == "inline"

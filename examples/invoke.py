@@ -55,12 +55,18 @@ def main():
     parser.add_argument("--script", help="Inline Playwright script")
     parser.add_argument("--file", help="Path to a local .py script file")
     parser.add_argument("--s3", help="S3 URI to a script file (s3://bucket/key)")
-    parser.add_argument("--param", action="append", default=[], help="Key=value params (repeatable)")
+    parser.add_argument(
+        "--param", action="append", default=[], help="Key=value params (repeatable)"
+    )
     parser.add_argument("--timeout", type=int, default=30, help="Timeout in seconds")
-    parser.add_argument("--wait-until", default="load", choices=["load", "domcontentloaded", "networkidle"])
+    parser.add_argument(
+        "--wait-until", default="load", choices=["load", "domcontentloaded", "networkidle"]
+    )
     parser.add_argument("--function", default="TheatreFunction", help="Lambda function name")
     parser.add_argument("--region", help="AWS region")
-    parser.add_argument("--local", action="store_true", help="Invoke against local Docker container")
+    parser.add_argument(
+        "--local", action="store_true", help="Invoke against local Docker container"
+    )
     parser.add_argument("--port", type=int, default=9000, help="Local Docker container port")
     args = parser.parse_args()
 

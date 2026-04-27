@@ -9,6 +9,5 @@ for item in event["params"]["todos"]:
 
 result["count"] = page.locator("ul.todo-list li").count()
 result["items"] = page.evaluate(
-    "Array.from(document.querySelectorAll('ul.todo-list li label'))"
-    ".map(l => l.textContent)"
+    "Array.from(document.querySelectorAll('ul.todo-list li label')).map(l => l.textContent)"
 )

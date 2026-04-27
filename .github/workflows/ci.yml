@@ -7,6 +7,25 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint
+        run: ruff check src/ tests/ examples/
+
+      - name: Format check
+        run: ruff format --check src/ tests/ examples/
+
   unit-tests:
     runs-on: ubuntu-latest
     steps:
@@ -41,3 +60,24 @@ jobs:
 
       - name: Run handler tests
         run: pytest tests/test_handler_unit.py tests/test_handler_integration.py -v --timeout=120
+
+  cve-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t lambda-theatre src/
+
+      - name: Scan Python dependencies with pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r src/requirements.txt
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: lambda-theatre
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH

@@ -30,8 +30,8 @@ Optional event fields:
 import json
 import os
 import traceback
-from playwright.sync_api import sync_playwright
 
+from playwright.sync_api import sync_playwright
 
 CHROMIUM_ARGS = [
     "--no-sandbox",
@@ -110,11 +110,17 @@ def handler(event, context):
 
     viewport = event.get("viewport", {"width": 1280, "height": 720})
     if not isinstance(viewport, dict) or "width" not in viewport or "height" not in viewport:
-        return {"statusCode": 400, "body": "Field 'viewport' must be {\"width\": int, \"height\": int}"}
+        return {
+            "statusCode": 400,
+            "body": 'Field \'viewport\' must be {"width": int, "height": int}',
+        }
 
     wait_until = event.get("wait_until", "load")
     if wait_until not in _VALID_WAIT_UNTIL:
-        return {"statusCode": 400, "body": f"Field 'wait_until' must be one of {sorted(_VALID_WAIT_UNTIL)}"}
+        return {
+            "statusCode": 400,
+            "body": f"Field 'wait_until' must be one of {sorted(_VALID_WAIT_UNTIL)}",
+        }
 
     ctx = None
     page = None
@@ -136,15 +142,18 @@ def handler(event, context):
         # __builtins__ is intentionally omitted so Python injects the full
         # builtins module -- scripts can use import, open(), etc.
         # See the Security section in README for the trust model.
-        exec(script, {
-            "__name__": "__script__",
-            "page": page,
-            "browser": _browser,
-            "context": ctx,
-            "event": event,
-            "result": result,
-            "json": json,
-        })
+        exec(
+            script,
+            {
+                "__name__": "__script__",
+                "page": page,
+                "browser": _browser,
+                "context": ctx,
+                "event": event,
+                "result": result,
+                "json": json,
+            },
+        )
 
         return {"statusCode": 200, "body": json.dumps(result, default=str)}
 

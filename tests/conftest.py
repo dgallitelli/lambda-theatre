@@ -1,8 +1,6 @@
-import sys
-import os
+import json
 import subprocess
 import time
-import json
 import urllib.request
 
 import pytest
@@ -30,11 +28,15 @@ def container():
         check=True,
         capture_output=True,
     )
-    proc = subprocess.run(
+    subprocess.run(
         [
-            "docker", "run", "-d",
-            "--name", CONTAINER_NAME,
-            "-p", f"{PORT}:8080",
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            CONTAINER_NAME,
+            "-p",
+            f"{PORT}:8080",
             "lambda-theatre",
         ],
         check=True,
