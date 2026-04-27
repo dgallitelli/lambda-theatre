@@ -2,6 +2,12 @@
 
 Container image for running Playwright + Chromium on AWS Lambda. Build the image once, inject Playwright scripts at runtime via the event payload or S3.
 
+---
+
+**Table of contents:** [How it works](#how-it-works) | [Quick start](#quick-start) | [Usage](#usage) | [Examples](#examples) | [Benchmarks](#benchmarks) | [Cold start optimization](#cold-start-optimization) | [Security](#security) | [Project structure](#project-structure)
+
+---
+
 ## How it works
 
 The container image ships Chromium and Playwright pre-installed on Ubuntu 24.04. At Lambda cold start, Chromium launches during the **free init phase** (not billed). Your Playwright script runs against the already-warm browser, then the page and context are cleaned up. On warm starts, the browser is reused — only a new page is created.
@@ -13,21 +19,9 @@ The container image ships Chromium and Playwright pre-installed on Ubuntu 24.04.
                     +-- from S3 via event["s3_uri"]
 ```
 
-## Performance
-
-Measured locally via Lambda Runtime Interface Emulator:
-
-| Metric | Time |
-|--------|------|
-| Cold start (first invocation) | ~850ms |
-| Warm start (simple page) | ~70ms |
-| Warm start (React SPA interaction) | ~300ms |
-
-Chromium launches during Lambda's free init phase. The handler only pays for page creation + navigation + script execution.
-
 ## Quick start
 
-### Build and test locally
+### 1. Build and test locally
 
 ```bash
 make build
@@ -41,7 +35,6 @@ docker build -t playwright-lambda .
 docker run -d --name test -p 9000:8080 playwright-lambda
 sleep 3
 
-# Get a page title
 curl -s -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" \
   -d '{"url": "https://example.com", "script": "result[\"title\"] = page.title()"}' \
   | python3 -m json.tool
@@ -49,13 +42,13 @@ curl -s -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations"
 docker rm -f test
 ```
 
-### Deploy to AWS
+### 2. Deploy to AWS
 
 ```bash
 sam build && sam deploy --guided --stack-name playwright-lambda
 ```
 
-### Invoke
+### 3. Invoke
 
 ```bash
 aws lambda invoke \
@@ -71,7 +64,9 @@ Or with the included helper:
 python3 example_invoke.py --url https://example.com --script "result['title'] = page.title()"
 ```
 
-## Event schema
+## Usage
+
+### Event schema
 
 ```json
 {
@@ -97,7 +92,7 @@ python3 example_invoke.py --url https://example.com --script "result['title'] = 
 | `user_agent` | No | Custom User-Agent string |
 | `params` | No | Arbitrary data accessible as `event["params"]` in your script |
 
-## Script environment
+### Script environment
 
 Your script receives these variables — no imports needed:
 
@@ -110,37 +105,9 @@ Your script receives these variables — no imports needed:
 | `result` | `dict` | Put your return data here |
 | `json` | `module` | The `json` module, pre-imported |
 
-## Examples
+### Loading scripts from S3
 
-### Extract text from a page
-
-```python
-# Inline
-{"url": "https://example.com", "script": "result['text'] = page.inner_text('body')"}
-```
-
-### Interact with a React SPA
-
-```python
-{
-  "url": "https://todomvc.com/examples/react/dist/",
-  "script": "page.wait_for_selector('input.new-todo')\nfor item in event['params']['todos']:\n    page.fill('input.new-todo', item)\n    page.press('input.new-todo', 'Enter')\nresult['count'] = page.locator('ul.todo-list li').count()",
-  "params": {"todos": ["Buy milk", "Write tests", "Ship it"]}
-}
-```
-
-### Fill a form and submit
-
-```python
-{
-  "url": "https://httpbin.org/forms/post",
-  "script": "page.fill('input[name=\"custname\"]', 'Lambda Bot')\npage.fill('input[name=\"custemail\"]', 'bot@example.com')\npage.click('button[type=\"submit\"]')\npage.wait_for_load_state('load')\nresult['url'] = page.url"
-}
-```
-
-### Load script from S3
-
-```python
+```json
 {"url": "https://example.com", "s3_uri": "s3://my-bucket/scripts/extract.py"}
 ```
 
@@ -160,13 +127,91 @@ Or add the permission manually if deploying outside SAM:
 }
 ```
 
-See the [`examples/`](examples/) directory for more complete examples and a Python invocation helper.
+## Examples
 
-## Why container image?
+### Extract text from a page
 
-Lambda zip deployments have a 250 MB unzipped limit. Chromium alone is ~300 MB. Container images support up to 10 GB, and Lambda caches them across invocations.
+```json
+{"url": "https://example.com", "script": "result['text'] = page.inner_text('body')"}
+```
 
-Ubuntu 24.04 is used because Playwright's Chromium requires GLIBC 2.39+, which Amazon Linux 2023 does not ship.
+### Interact with a React SPA
+
+```json
+{
+  "url": "https://todomvc.com/examples/react/dist/",
+  "script": "page.wait_for_selector('input.new-todo')\nfor item in event['params']['todos']:\n    page.fill('input.new-todo', item)\n    page.press('input.new-todo', 'Enter')\nresult['count'] = page.locator('ul.todo-list li').count()",
+  "params": {"todos": ["Buy milk", "Write tests", "Ship it"]}
+}
+```
+
+### Fill a form and submit
+
+```json
+{
+  "url": "https://httpbin.org/forms/post",
+  "script": "page.fill('input[name=\"custname\"]', 'Lambda Bot')\npage.fill('input[name=\"custemail\"]', 'bot@example.com')\npage.click('button[type=\"submit\"]')\npage.wait_for_load_state('load')\nresult['url'] = page.url"
+}
+```
+
+### Multi-step scraper (S3)
+
+Upload [`examples/hacker_news_scraper.py`](examples/hacker_news_scraper.py) to S3 and invoke:
+
+```bash
+aws s3 cp examples/hacker_news_scraper.py s3://my-bucket/scripts/
+python3 example_invoke.py --s3 s3://my-bucket/scripts/hacker_news_scraper.py --param limit=5
+```
+
+See the [`examples/`](examples/) directory for all example scripts.
+
+## Benchmarks
+
+Measured on AWS Lambda (us-east-1) using [Lambda Power Tuning](https://github.com/alexcasalboni/aws-lambda-power-tuning) with the [Hacker News scraper](examples/hacker_news_scraper.py) (navigates to HN, visits 5 story URLs, extracts metadata from each). 10 invocations per memory size.
+
+### Memory size vs. performance
+
+| Memory | Avg Duration | Cost / invocation | Relative speed |
+|--------|-------------|-------------------|---------------|
+| 512 MB | 20,422ms | $0.000172 | 4.5x slower |
+| 768 MB | 14,313ms | $0.000180 | 3.2x slower |
+| 1024 MB | 9,650ms | $0.000162 | 2.1x slower |
+| 1536 MB | 7,201ms | $0.000181 | 1.6x slower |
+| **2048 MB** | **4,531ms** | **$0.000152** | **baseline** |
+| 3072 MB | 3,181ms | $0.000160 | 1.4x faster |
+
+[Interactive visualization](https://lambda-power-tuning.show/#AAIAAwAEAAYACAAM;W4ufRn2lX0ZGyBZG9gPhRcaUjUVmykZF;9uIzOQ0ePTlEAyo5skc+ORCsHzk3HCg5)
+
+**2048 MB is the sweet spot** — cheapest per invocation AND fast. Above 2048 MB, the workload becomes network-bound (waiting for page loads), so extra CPU doesn't help. Below 1024 MB, reduced CPU makes everything slower without meaningful cost savings.
+
+### Cold start vs. warm start (2048 MB)
+
+| Scenario | Init Duration | Handler Duration | Total |
+|----------|--------------|------------------|-------|
+| Cold start (image cached) | 1,925ms | 280ms | 2,205ms |
+| Cold start (typical) | 3,659ms | 511ms | 4,171ms |
+| Cold start (image evicted) | 6,616ms | 838ms | 7,454ms |
+| **Warm start (simple page)** | — | **115-131ms** | **~120ms** |
+| **Warm start (React SPA)** | — | **2,243ms** | **~2.2s** |
+| **Warm start (multi-page scraper)** | — | **4,531ms** | **~4.5s** |
+
+Cold start variance is dominated by whether the container image is cached on the Lambda worker. After the first pull, subsequent cold starts on the same host are ~2s.
+
+### Memory usage
+
+| Workload | Peak Memory |
+|----------|-------------|
+| Simple page (title extraction) | ~470 MB |
+| React SPA (fill, click, toggle) | ~525 MB |
+| Multi-page scraper (5 URLs) | ~660 MB |
+
+### Cost projections (2048 MB)
+
+| Invocations/month | Estimated cost |
+|-------------------|---------------|
+| 1,000 | $0.15 |
+| 10,000 | $1.52 |
+| 100,000 | $15.23 |
 
 ## Cold start optimization
 
@@ -216,6 +261,12 @@ example_invoke.py   Python helper for invoking the function
 examples/           Example Playwright scripts for common use cases
 ARCHITECTURE.md     Integration patterns (API Gateway, Step Functions)
 ```
+
+## Why container image?
+
+Lambda zip deployments have a 250 MB unzipped limit. Chromium alone is ~300 MB. Container images support up to 10 GB, and Lambda caches them across invocations.
+
+Ubuntu 24.04 is used because Playwright's Chromium requires GLIBC 2.39+, which Amazon Linux 2023 does not ship.
 
 ## Requirements
 
