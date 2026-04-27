@@ -60,6 +60,37 @@ class TestInputValidation:
         assert r["statusCode"] == 502
 
 
+class TestBrowserField:
+    def test_invalid_browser_returns_400(self, container):
+        r = container({"script": "pass", "browser": "firefox"})
+        assert r["statusCode"] == 400
+        assert "browser" in r["body"].lower()
+
+    def test_empty_browser_returns_400(self, container):
+        r = container({"script": "pass", "browser": ""})
+        assert r["statusCode"] == 400
+
+    def test_unavailable_backend_returns_400(self, container):
+        r = container({"script": "pass", "browser": "lightpanda"})
+        assert r["statusCode"] == 400
+        assert "not available" in r["body"].lower()
+
+    def test_explicit_chromium_works(self, container):
+        r = container(
+            {
+                "url": "https://example.com",
+                "script": "result['title'] = page.title()",
+                "browser": "chromium",
+            }
+        )
+        assert r["statusCode"] == 200
+
+    def test_warmup_ignores_browser_field(self, container):
+        r = container({})
+        assert r["statusCode"] == 200
+        assert r["body"] == "warm"
+
+
 class TestScriptPrecedence:
     def test_script_wins_over_s3(self, container):
         r = container(
