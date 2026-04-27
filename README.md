@@ -62,7 +62,13 @@ aws lambda invoke \
   --function-name PlaywrightFunction \
   --cli-binary-format raw-in-base64-out \
   --payload '{"url": "https://example.com", "script": "result[\"title\"] = page.title()"}' \
-  output.json && cat output.json
+  /dev/stdout | python3 -m json.tool
+```
+
+Or with the included helper:
+
+```bash
+python3 example_invoke.py --url https://example.com --script "result['title'] = page.title()"
 ```
 
 ## Event schema
