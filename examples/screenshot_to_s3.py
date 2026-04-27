@@ -1,4 +1,7 @@
 # Take a full-page screenshot and upload to S3.
+# NOTE: Requires s3:PutObject permission. The default SAM template only grants
+#       s3:GetObject for script loading. Add an S3CrudPolicy or a custom IAM
+#       statement to your Lambda role before using this example.
 # Usage: {"url": "https://example.com", "params": {"bucket": "my-bucket", "key": "screenshots/example.png"}}
 
 import boto3

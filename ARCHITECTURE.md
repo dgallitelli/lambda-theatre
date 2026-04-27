@@ -168,8 +168,8 @@ Chain multiple browser operations across invocations. Each step gets a fresh pag
 Key points:
 - Use Express Workflows for sub-5-minute flows (cheaper, synchronous)
 - Use Standard Workflows for longer flows or those needing retry/error handling
-- Pass cookies/state between steps via the Step Functions state
 - Each step is a separate Lambda invocation but likely hits a warm browser
+- **Note on state passing:** The handler returns `{"statusCode": 200, "body": "<JSON string>"}`. The `body` field is a JSON-encoded string, not an object. To pass data between steps, you need to parse it — use a [Pass state with intrinsic functions](https://docs.aws.amazon.com/step-functions/latest/dg/amazon-states-language-intrinsic-functions.html) (`States.StringToJson`) or an intermediate Lambda to deserialize `$.login.body` before accessing nested fields like `cookies`.
 
 ### Pattern 4: EventBridge scheduled scraping
 
@@ -253,10 +253,10 @@ Key points:
 | ECR storage | ~1.2 GB image stored |
 | Data transfer | Chromium's outbound requests |
 
-Rough estimate for 10,000 invocations/month at 2048 MB, 10s average duration:
-- Lambda: ~$3.30
+Rough estimate for 10,000 invocations/month at 2048 MB, ~4.5s average duration (based on [benchmarks](README.md#benchmarks)):
+- Lambda: ~$1.52
 - ECR: ~$0.12
-- Total: ~$3.50/month
+- Total: ~$1.64/month
 
 ## Limitations
 

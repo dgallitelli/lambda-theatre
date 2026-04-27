@@ -83,8 +83,8 @@ python3 example_invoke.py --url https://example.com --script "result['title'] = 
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `script` | One of `script` or `s3_uri` | Inline Python code |
-| `s3_uri` | One of `script` or `s3_uri` | S3 path to a `.py` script file |
+| `script` | One of `script` or `s3_uri` | Inline Python code (takes precedence over `s3_uri`) |
+| `s3_uri` | One of `script` or `s3_uri` | S3 path to a `.py` script file (ignored if `script` is set) |
 | `url` | No | Navigate to this URL before running the script |
 | `timeout` | No | Timeout in seconds (default: 30) |
 | `wait_until` | No | `load` \| `domcontentloaded` \| `networkidle` (default: `load`) |
@@ -94,7 +94,7 @@ python3 example_invoke.py --url https://example.com --script "result['title'] = 
 
 ### Script environment
 
-Your script receives these variables — no imports needed:
+Your script receives these variables pre-bound. Standard `import` statements also work (e.g., `import boto3`, `import time`).
 
 | Variable | Type | Description |
 |----------|------|-------------|
@@ -145,12 +145,12 @@ Or add the permission manually if deploying outside SAM:
 }
 ```
 
-### Fill a form and submit
+### Fill a login form and submit
 
 ```json
 {
-  "url": "https://httpbin.org/forms/post",
-  "script": "page.fill('input[name=\"custname\"]', 'Lambda Bot')\npage.fill('input[name=\"custemail\"]', 'bot@example.com')\npage.click('button[type=\"submit\"]')\npage.wait_for_load_state('load')\nresult['url'] = page.url"
+  "url": "https://the-internet.herokuapp.com/login",
+  "script": "page.fill('#username', 'tomsmith')\npage.fill('#password', 'SuperSecretPassword!')\npage.click('button[type=\"submit\"]')\npage.wait_for_load_state('load')\nresult['url'] = page.url\nresult['message'] = page.text_content('#flash')"
 }
 ```
 
@@ -231,7 +231,7 @@ To avoid cold starts during normal traffic, add a scheduled warmup ping:
 aws events put-rule --name playwright-warmup --schedule-expression "rate(5 minutes)"
 ```
 
-The handler detects empty events and returns immediately (~100ms), keeping the execution environment alive.
+The handler detects empty/warmup events (no `script` or `s3_uri`) and returns `{"statusCode": 200, "body": "warm"}` immediately, keeping the execution environment alive.
 
 **Cost comparison (2048 MB, keeping 1 instance warm):**
 
@@ -244,9 +244,19 @@ The warmup approach is **300x cheaper** and works well in practice — Lambda ra
 
 ## Security
 
+> **The `script` and `s3_uri` fields execute arbitrary Python code** with the full permissions of the Lambda execution role. Never expose this function to untrusted input without an authorization layer.
+
+**Production hardening:**
+- Use `s3_uri` with pre-approved scripts only — consider removing `script` field support in your fork
+- Restrict the Lambda execution role to minimum required permissions
+- Add API Gateway with IAM auth or a custom authorizer if exposing via HTTP
+- Use VPC and security groups to limit Chromium's network access
+- Set `PLAYWRIGHT_DEBUG=false` (default) to suppress stack traces in error responses. Set to `true` only for development.
+
+**Other notes:**
 - **No public endpoints.** The SAM template creates a Lambda function with no Function URL, no API Gateway, and no public access. Invoke via SDK or CLI only.
+- **Chromium runs with `--no-sandbox`** because Lambda does not support the Chrome sandbox. Navigating to untrusted URLs exposes the function to browser-level exploits without sandbox protection.
 - **Chromium binds to localhost.** No network ports are exposed.
-- **Script injection.** The handler runs arbitrary Python code from the event payload. In production, validate or restrict the `script` field at the API layer (e.g., API Gateway request validation) or use `s3_uri` to load only pre-approved scripts.
 
 ## Project structure
 

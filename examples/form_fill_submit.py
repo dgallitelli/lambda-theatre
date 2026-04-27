@@ -1,5 +1,6 @@
-# Fill a form and submit it, return the resulting page info.
+# Fill a login form and submit it, return the resulting page info.
 # Usage: {"url": "https://the-internet.herokuapp.com/login", "params": {"username": "tomsmith", "password": "SuperSecretPassword!"}}
+# Tested against https://the-internet.herokuapp.com (Heroku demo site)
 
 page.fill("#username", event["params"]["username"])
 page.fill("#password", event["params"]["password"])

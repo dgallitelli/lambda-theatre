@@ -8,12 +8,16 @@ Accepts a Playwright script via:
   1. event["script"]  -- inline Python code (string)
   2. event["s3_uri"]  -- S3 path to a .py file (s3://bucket/scripts/scrape.py)
 
+If both are provided, "script" takes precedence.
+
 The script receives these pre-bound variables:
   - page      Playwright Page (navigated to event["url"] if provided)
   - browser   Playwright Browser instance (persistent across warm starts)
   - context   Playwright BrowserContext (fresh per invocation)
   - event     the full Lambda event dict
   - result    dict -- put your return data here
+
+Standard imports (import boto3, import time, etc.) work normally in scripts.
 
 Optional event fields:
   - url           navigate before running script
@@ -24,6 +28,7 @@ Optional event fields:
 """
 
 import json
+import os
 import traceback
 from playwright.sync_api import sync_playwright
 
@@ -50,6 +55,8 @@ CHROMIUM_ARGS = [
     "--disk-cache-dir=/tmp/chrome-cache",
 ]
 
+_DEBUG = os.environ.get("PLAYWRIGHT_DEBUG", "").lower() in ("1", "true")
+
 # --- Init phase: launch browser ONCE (free, not billed) ---
 _pw = sync_playwright().start()
 _browser = _pw.chromium.launch(headless=True, args=CHROMIUM_ARGS)
@@ -69,7 +76,9 @@ def _ensure_browser():
 def _fetch_script_from_s3(s3_uri):
     import boto3
 
-    parts = s3_uri.replace("s3://", "").split("/", 1)
+    if not s3_uri.startswith("s3://") or "/" not in s3_uri[5:]:
+        raise ValueError(f"Invalid S3 URI: {s3_uri}. Expected s3://bucket/key")
+    parts = s3_uri[5:].split("/", 1)
     bucket, key = parts[0], parts[1]
     s3 = boto3.client("s3")
     resp = s3.get_object(Bucket=bucket, Key=key)
@@ -77,13 +86,13 @@ def _fetch_script_from_s3(s3_uri):
 
 
 def handler(event, context):
+    if not event or (not event.get("script") and not event.get("s3_uri")):
+        return {"statusCode": 200, "body": "warm"}
+
     _ensure_browser()
 
     script = event.get("script")
     s3_uri = event.get("s3_uri")
-
-    if not script and not s3_uri:
-        return {"statusCode": 400, "body": "Provide 'script' (inline) or 's3_uri'"}
 
     if s3_uri and not script:
         try:
@@ -92,15 +101,21 @@ def handler(event, context):
             return {"statusCode": 502, "body": f"Failed to fetch from S3: {e}"}
 
     url = event.get("url")
-    timeout_ms = event.get("timeout", 30) * 1000
+    try:
+        timeout_ms = int(event.get("timeout", 30)) * 1000
+    except (TypeError, ValueError):
+        return {"statusCode": 400, "body": "Field 'timeout' must be a number (seconds)"}
 
     ctx = None
     page = None
     try:
-        ctx = _browser.new_context(
-            viewport=event.get("viewport", {"width": 1280, "height": 720}),
-            user_agent=event.get("user_agent"),
-        )
+        context_kwargs = {
+            "viewport": event.get("viewport", {"width": 1280, "height": 720}),
+        }
+        if event.get("user_agent"):
+            context_kwargs["user_agent"] = event["user_agent"]
+
+        ctx = _browser.new_context(**context_kwargs)
         page = ctx.new_page()
         page.set_default_timeout(timeout_ms)
         page.set_default_navigation_timeout(timeout_ms)
@@ -122,14 +137,10 @@ def handler(event, context):
         return {"statusCode": 200, "body": json.dumps(result, default=str)}
 
     except Exception as e:
-        return {
-            "statusCode": 500,
-            "body": json.dumps({
-                "error": type(e).__name__,
-                "message": str(e),
-                "trace": traceback.format_exc().split("\n")[-4:],
-            }),
-        }
+        body = {"error": type(e).__name__, "message": str(e)}
+        if _DEBUG:
+            body["trace"] = traceback.format_exc().split("\n")[-4:]
+        return {"statusCode": 500, "body": json.dumps(body)}
     finally:
         if page:
             try:
