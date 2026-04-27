@@ -156,7 +156,7 @@ if __name__ == "__main__":
     main()
 ```
 
-Standard imports work at the top of the script:
+Standard imports work at the top of the script (`boto3`, `json`, `time`, and other packages already installed in the container):
 
 ```python
 import time
@@ -166,6 +166,8 @@ page.click("#load-more")
 time.sleep(2)
 result["items"] = page.evaluate("document.querySelectorAll('.item').length")
 ```
+
+> **Note:** Scripts can only import packages already installed in the container image (`playwright`, `boto3`, and Python stdlib). Installing additional pip packages at runtime is not currently supported. If you need a package added to the base image, [open an issue](https://github.com/dgallitelli/lambda-theatre/issues).
 
 See the [`examples/`](examples/) directory — every file there is a working script you can upload directly.
 
