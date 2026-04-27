@@ -1,6 +1,13 @@
-# aws-lambda-chromium-playwright-python
+<p align="center">
+  <img src="assets/logo.png" alt="aws-lambda-chromium-playwright-python" width="200" />
+</p>
 
-Container image for running Playwright + Chromium on AWS Lambda. Build the image once, inject Playwright scripts at runtime via the event payload or S3.
+<h1 align="center">aws-lambda-chromium-playwright-python</h1>
+
+<p align="center">
+  Container image for running Playwright + Chromium on AWS Lambda.<br>
+  Build the image once, inject Playwright scripts at runtime via the event payload or S3.
+</p>
 
 ---
 
@@ -12,11 +19,24 @@ Container image for running Playwright + Chromium on AWS Lambda. Build the image
 
 The container image ships Chromium and Playwright pre-installed on Ubuntu 24.04. At Lambda cold start, Chromium launches during the **free init phase** (not billed). Your Playwright script runs against the already-warm browser, then the page and context are cleaned up. On warm starts, the browser is reused — only a new page is created.
 
-```
-[Your script] --> Lambda handler --> Playwright --> Chromium (pre-launched)
-                    |
-                    +-- inline via event["script"]
-                    +-- from S3 via event["s3_uri"]
+```mermaid
+flowchart LR
+    subgraph "Your Code"
+        A["Inline script<br>(event payload)"]
+        B["S3 script<br>(s3://bucket/key)"]
+    end
+
+    subgraph "Lambda Container"
+        C["handler.py"]
+        D["Playwright"]
+        E["Chromium<br>(pre-launched at init)"]
+    end
+
+    F["Target website"]
+
+    A --> C
+    B --> C
+    C --> D --> E --> F
 ```
 
 ## Quick start
@@ -61,7 +81,7 @@ aws lambda invoke \
 Or with the included helper:
 
 ```bash
-python3 example_invoke.py --url https://example.com --script "result['title'] = page.title()"
+python3 examples/invoke.py --url https://example.com --script "result['title'] = page.title()"
 ```
 
 ## Usage
@@ -160,7 +180,7 @@ Upload [`examples/hacker_news_scraper.py`](examples/hacker_news_scraper.py) to S
 
 ```bash
 aws s3 cp examples/hacker_news_scraper.py s3://my-bucket/scripts/
-python3 example_invoke.py --s3 s3://my-bucket/scripts/hacker_news_scraper.py --param limit=5
+python3 examples/invoke.py --s3 s3://my-bucket/scripts/hacker_news_scraper.py --param limit=5
 ```
 
 See the [`examples/`](examples/) directory for all example scripts.
@@ -261,15 +281,21 @@ The warmup approach is **300x cheaper** and works well in practice — Lambda ra
 ## Project structure
 
 ```
-Dockerfile          Container image (Ubuntu 24.04 + Chromium + Playwright + Lambda RIE)
-handler.py          Lambda handler (script injection runtime)
-entry.sh            Bootstrap (Lambda RIE for local, awslambdaric for deployed)
-requirements.txt    Python dependencies
-template.yaml       SAM template (one function, no public access)
-Makefile            build / test / deploy shortcuts
-example_invoke.py   Python helper for invoking the function
-examples/           Example Playwright scripts for common use cases
-ARCHITECTURE.md     Integration patterns (API Gateway, Step Functions)
+Dockerfile           Container image (Ubuntu 24.04 + Chromium + Playwright + Lambda RIE)
+handler.py           Lambda handler (script injection runtime)
+entry.sh             Bootstrap (Lambda RIE for local, awslambdaric for deployed)
+requirements.txt     Python dependencies
+template.yaml        SAM template (one function, no public access)
+Makefile             build / test / deploy shortcuts
+examples/
+  invoke.py          Python helper for invoking the function (local + deployed)
+  hacker_news_scraper.py   Multi-step scraper (navigates 5+ pages)
+  extract_links.py         Extract all links from a page
+  form_fill_submit.py      Fill and submit a login form
+  screenshot_to_s3.py      Full-page screenshot uploaded to S3
+  todomvc_add_items.py     React SPA interaction
+  wait_and_extract.py      Wait for dynamic content, extract structured data
+ARCHITECTURE.md      Integration patterns (API Gateway, Step Functions, SQS, EventBridge)
 ```
 
 ## Why container image?

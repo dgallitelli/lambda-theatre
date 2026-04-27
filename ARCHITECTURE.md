@@ -57,7 +57,7 @@ The simplest pattern. Your application invokes the Lambda function directly via 
 
 Best for: backend services, data pipelines, scheduled jobs.
 
-See [`example_invoke.py`](example_invoke.py) for a complete helper.
+See [`examples/invoke.py`](examples/invoke.py) for a complete helper.
 
 ### Pattern 2: API Gateway + Lambda (private)
 

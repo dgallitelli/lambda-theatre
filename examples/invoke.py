@@ -4,21 +4,21 @@ Helper for invoking the Playwright Lambda function.
 
 Usage:
     # Inline script
-    python example_invoke.py --url https://example.com --script "result['title'] = page.title()"
+    python examples/invoke.py --url https://example.com --script "result['title'] = page.title()"
 
     # Script from a local file
-    python example_invoke.py --url https://example.com --file examples/extract_links.py
+    python examples/invoke.py --url https://example.com --file examples/extract_links.py
 
     # Script from S3
-    python example_invoke.py --url https://example.com --s3 s3://bucket/scripts/scrape.py
+    python examples/invoke.py --url https://example.com --s3 s3://bucket/scripts/scrape.py
 
     # Pass custom params
-    python example_invoke.py --url https://todomvc.com/examples/react/dist/ \\
+    python examples/invoke.py --url https://todomvc.com/examples/react/dist/ \\
         --file examples/todomvc_add_items.py \\
         --param todos='["Alpha","Bravo","Charlie"]'
 
     # Local Docker testing (no AWS credentials needed)
-    python example_invoke.py --local --url https://example.com --script "result['title'] = page.title()"
+    python examples/invoke.py --local --url https://example.com --script "result['title'] = page.title()"
 """
 
 import argparse

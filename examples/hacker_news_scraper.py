@@ -4,12 +4,12 @@ and collect metadata from each story's page.
 
 Upload to S3 and invoke:
     aws s3 cp examples/hacker_news_scraper.py s3://my-bucket/scripts/
-    python3 example_invoke.py \
+    python3 examples/invoke.py \
         --s3 s3://my-bucket/scripts/hacker_news_scraper.py \
         --param limit=5
 
 Or invoke inline:
-    python3 example_invoke.py \
+    python3 examples/invoke.py \
         --file examples/hacker_news_scraper.py \
         --param limit=3
 
