@@ -167,7 +167,7 @@ time.sleep(2)
 result["items"] = page.evaluate("document.querySelectorAll('.item').length")
 ```
 
-> **Note:** Scripts can only import packages already installed in the container image (`playwright`, `boto3`, and Python stdlib). Installing additional pip packages at runtime is not currently supported. If you need a package added to the base image, [open an issue](https://github.com/dgallitelli/lambda-theatre/issues).
+> **Need additional packages?** Scripts can import any package installed in the container image (`playwright`, `boto3`, and Python stdlib are included by default). To add more, add them to `src/requirements.txt` and rebuild: `make build`. The image is the theatre — rebuild it once when your dependencies change, then swap scripts freely. If you think a package should be included by default, [open an issue](https://github.com/dgallitelli/lambda-theatre/issues).
 
 See the [`examples/`](examples/) directory — every file there is a working script you can upload directly.
 
