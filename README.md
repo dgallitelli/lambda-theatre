@@ -23,6 +23,10 @@
 
 ## How it works
 
+<p align="center">
+  <img src="assets/banner.png" alt="Lambda Theatre — How it works" width="800" />
+</p>
+
 The container image ships Chromium and Playwright pre-installed on Ubuntu 24.04. At Lambda cold start, Chromium launches during the **free init phase** (not billed). Your Playwright script runs against the already-warm browser, then the page and context are cleaned up. On warm starts, the browser is reused — only a new page is created.
 
 ```mermaid
