@@ -144,6 +144,22 @@ Your script receives these variables — no imports needed:
 {"url": "https://example.com", "s3_uri": "s3://my-bucket/scripts/extract.py"}
 ```
 
+The Lambda function needs `s3:GetObject` permission on the bucket. The SAM template handles this automatically — pass the bucket name at deploy time:
+
+```bash
+sam deploy --parameter-overrides ScriptBucket=my-bucket
+```
+
+Or add the permission manually if deploying outside SAM:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "s3:GetObject",
+  "Resource": "arn:aws:s3:::my-bucket/scripts/*"
+}
+```
+
 See the [`examples/`](examples/) directory for more complete examples and a Python invocation helper.
 
 ## Why container image?
