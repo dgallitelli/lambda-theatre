@@ -5,8 +5,8 @@ Contributions are welcome. Here's how to get started.
 ## Development setup
 
 ```bash
-git clone https://github.com/<your-fork>/aws-lambda-chromium-playwright-python.git
-cd aws-lambda-chromium-playwright-python
+git clone https://github.com/<your-fork>/lambda-theatre.git
+cd lambda-theatre
 make build    # builds the Docker image
 make test     # runs smoke tests (requires internet)
 ```
