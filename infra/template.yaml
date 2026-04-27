@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Playwright + Chromium on Lambda (container image).
+  Lambda Theatre — Playwright + Chromium on Lambda (container image).
   Invoke-only — no public endpoints.
 
 Parameters:
@@ -22,7 +22,7 @@ Conditions:
   HasScriptBucket: !Not [!Equals [!Ref ScriptBucket, ""]]
 
 Resources:
-  PlaywrightFunction:
+  TheatreFunction:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
@@ -45,7 +45,7 @@ Resources:
 Outputs:
   FunctionArn:
     Description: Lambda function ARN — invoke via SDK or CLI
-    Value: !GetAtt PlaywrightFunction.Arn
+    Value: !GetAtt TheatreFunction.Arn
   FunctionName:
     Description: Lambda function name
-    Value: !Ref PlaywrightFunction
+    Value: !Ref TheatreFunction

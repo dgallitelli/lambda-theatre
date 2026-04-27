@@ -132,7 +132,7 @@ Resources:
           ThrottlingBurstLimit: 10
           ThrottlingRateLimit: 5
 
-  PlaywrightFunction:
+  TheatreFunction:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
@@ -188,7 +188,7 @@ flowchart TD
   "States": {
     "Login": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:REGION:ACCOUNT:function:PlaywrightFunction",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT:function:TheatreFunction",
       "Parameters": {
         "url": "https://app.example.com/login",
         "script": "page.fill('#email', event['params']['email'])\npage.fill('#password', event['params']['password'])\npage.click('button[type=submit]')\npage.wait_for_url('**/dashboard**')\nresult['cookies'] = context.cookies()",
@@ -202,7 +202,7 @@ flowchart TD
     },
     "ExtractData": {
       "Type": "Task",
-      "Resource": "arn:aws:lambda:REGION:ACCOUNT:function:PlaywrightFunction",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT:function:TheatreFunction",
       "Parameters": {
         "url": "https://app.example.com/dashboard",
         "script": "for c in event['params']['cookies']:\n    context.add_cookies([c])\npage.reload()\nresult['data'] = page.evaluate('() => JSON.parse(document.querySelector(\"#data\").textContent)')",
@@ -238,7 +238,7 @@ flowchart LR
 
 ```yaml
 Resources:
-  PlaywrightFunction:
+  TheatreFunction:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
@@ -280,7 +280,7 @@ Resources:
     Properties:
       VisibilityTimeout: 180
 
-  PlaywrightFunction:
+  TheatreFunction:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image

@@ -58,7 +58,7 @@ def main():
     parser.add_argument("--param", action="append", default=[], help="Key=value params (repeatable)")
     parser.add_argument("--timeout", type=int, default=30, help="Timeout in seconds")
     parser.add_argument("--wait-until", default="load", choices=["load", "domcontentloaded", "networkidle"])
-    parser.add_argument("--function", default="PlaywrightFunction", help="Lambda function name")
+    parser.add_argument("--function", default="TheatreFunction", help="Lambda function name")
     parser.add_argument("--region", help="AWS region")
     parser.add_argument("--local", action="store_true", help="Invoke against local Docker container")
     parser.add_argument("--port", type=int, default=9000, help="Local Docker container port")

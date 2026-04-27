@@ -1,7 +1,7 @@
 .PHONY: build test deploy clean
 
-IMAGE_NAME ?= playwright-lambda
-CONTAINER_NAME ?= playwright-lambda-test
+IMAGE_NAME ?= lambda-theatre
+CONTAINER_NAME ?= lambda-theatre-test
 PORT ?= 9000
 
 build:
@@ -22,7 +22,7 @@ test: build
 
 deploy: build
 	sam build --template infra/template.yaml
-	sam deploy --guided --stack-name playwright-lambda
+	sam deploy --guided --stack-name lambda-theatre
 
 clean:
 	@docker rm -f $(CONTAINER_NAME) 2>/dev/null || true

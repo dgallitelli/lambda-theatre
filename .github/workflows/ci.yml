@@ -13,11 +13,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build Docker image
-        run: docker build -t playwright-lambda src/
+        run: docker build -t lambda-theatre src/
 
       - name: Smoke test
         run: |
-          docker run -d --name test -p 9000:8080 playwright-lambda
+          docker run -d --name test -p 9000:8080 lambda-theatre
           sleep 5
           RESPONSE=$(curl -s -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" \
             -d '{"url": "https://example.com", "script": "result[\"title\"] = page.title()"}')
@@ -27,7 +27,7 @@ jobs:
 
       - name: Warmup ping returns 200
         run: |
-          docker run -d --name test -p 9000:8080 playwright-lambda
+          docker run -d --name test -p 9000:8080 lambda-theatre
           sleep 5
           RESPONSE=$(curl -s -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{}')
           echo "$RESPONSE"

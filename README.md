@@ -61,8 +61,8 @@ make test
 Or manually:
 
 ```bash
-docker build -t playwright-lambda src/
-docker run -d --name test -p 9000:8080 playwright-lambda
+docker build -t lambda-theatre src/
+docker run -d --name test -p 9000:8080 lambda-theatre
 sleep 3
 
 curl -s -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" \
@@ -75,14 +75,14 @@ docker rm -f test
 ### 2. Deploy to AWS
 
 ```bash
-sam build --template infra/template.yaml && sam deploy --guided --stack-name playwright-lambda
+sam build --template infra/template.yaml && sam deploy --guided --stack-name lambda-theatre
 ```
 
 ### 3. Invoke
 
 ```bash
 aws lambda invoke \
-  --function-name PlaywrightFunction \
+  --function-name TheatreFunction \
   --cli-binary-format raw-in-base64-out \
   --payload '{"url": "https://example.com", "script": "result[\"title\"] = page.title()"}' \
   /dev/stdout | python3 -m json.tool
