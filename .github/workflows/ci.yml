@@ -18,7 +18,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install test dependencies
-        run: pip install pytest
+        run: pip install pytest pytest-timeout
 
       - name: Run CLI unit tests
         run: pytest tests/test_invoke_cli.py -v
@@ -34,7 +34,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install test dependencies
-        run: pip install pytest
+        run: pip install pytest pytest-timeout
 
       - name: Build Docker image
         run: docker build -t lambda-theatre src/
