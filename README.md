@@ -128,7 +128,7 @@ python3 examples/invoke.py --url https://example.com --script "result['title'] =
 | `browser` | No | `"chromium"` \| `"lightpanda"` (default: auto-detect from image) |
 | `url` | No | Navigate to this URL before running the script |
 | `timeout` | No | Timeout in seconds (default: 30) |
-| `wait_until` | No | `load` \| `domcontentloaded` \| `networkidle` (default: `load`) |
+| `wait_until` | No | `load` \| `domcontentloaded` \| `networkidle` \| `commit` (default: `load`, Chromium only) |
 | `viewport` | No | `{width, height}` (default: 1280x720, Chromium only) |
 | `user_agent` | No | Custom User-Agent string |
 | `params` | No | Arbitrary data accessible as `event["params"]` in your script |

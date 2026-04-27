@@ -265,6 +265,30 @@ class TestLightpandaParams:
         assert body["greeting"] == "Hello Lambda"
 
 
+class TestLightpandaBrowserField:
+    def test_explicit_lightpanda_works(self, lightpanda_container):
+        r = lightpanda_container(
+            {
+                "url": "https://example.com",
+                "script": "result['title'] = page.title()",
+                "browser": "lightpanda",
+            }
+        )
+        assert r["statusCode"] == 200
+        body = json.loads(r["body"])
+        assert body["title"] == "Example Domain"
+
+    def test_chromium_unavailable_returns_400(self, lightpanda_container):
+        r = lightpanda_container({"script": "pass", "browser": "chromium"})
+        assert r["statusCode"] == 400
+        assert "not available" in r["body"].lower()
+
+    def test_warmup_works(self, lightpanda_container):
+        r = lightpanda_container({})
+        assert r["statusCode"] == 200
+        assert r["body"] == "warm"
+
+
 class TestLightpandaErrors:
     def test_script_syntax_error(self, lightpanda_container):
         r = lightpanda_container(
@@ -285,6 +309,18 @@ class TestLightpandaErrors:
         assert r["statusCode"] == 500
         body = json.loads(r["body"])
         assert body["error"] == "ZeroDivisionError"
+
+    def test_navigation_timeout(self, lightpanda_container):
+        r = lightpanda_container(
+            {
+                "url": "https://httpbin.org/delay/10",
+                "script": "result['ok'] = True",
+                "timeout": 3,
+            }
+        )
+        assert r["statusCode"] == 500
+        body = json.loads(r["body"])
+        assert "timeout" in body.get("message", "").lower() or "Timeout" in body.get("error", "")
 
 
 class TestLightpandaConsecutive:

@@ -82,6 +82,44 @@ _CHROMIUM_AVAILABLE = bool(
 )
 _LIGHTPANDA_AVAILABLE = bool(shutil.which("lightpanda"))
 
+
+def _start_lightpanda():
+    """Start Lightpanda subprocess and connect via CDP. Returns (proc, browser) or (None, None)."""
+    proc = subprocess.Popen(
+        [
+            "lightpanda",
+            "serve",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(_LIGHTPANDA_PORT),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL if not _DEBUG else subprocess.PIPE,
+    )
+    for _ in range(30):
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{_LIGHTPANDA_PORT}/json/version", timeout=1)
+            break
+        except Exception:
+            if proc.poll() is not None:
+                return None, None
+            _time.sleep(0.2)
+    else:
+        proc.kill()
+        proc.wait()
+        return None, None
+
+    try:
+        browser = _pw.chromium.connect_over_cdp(f"http://127.0.0.1:{_LIGHTPANDA_PORT}")
+    except Exception:
+        proc.kill()
+        proc.wait()
+        return None, None
+
+    return proc, browser
+
+
 # --- Launch available backend at init (free phase) ---
 _chromium_browser = None
 _lp_browser = None
@@ -91,20 +129,9 @@ if _CHROMIUM_AVAILABLE:
     _chromium_browser = _pw.chromium.launch(headless=True, args=CHROMIUM_ARGS)
 
 if _LIGHTPANDA_AVAILABLE:
-    _lp_proc = subprocess.Popen(
-        ["lightpanda", "serve", "--host", "127.0.0.1", "--port", str(_LIGHTPANDA_PORT)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    for _ in range(30):
-        try:
-            urllib.request.urlopen(
-                f"http://127.0.0.1:{_LIGHTPANDA_PORT}/json/version", timeout=1
-            )
-            break
-        except Exception:
-            _time.sleep(0.2)
-    _lp_browser = _pw.chromium.connect_over_cdp(f"http://127.0.0.1:{_LIGHTPANDA_PORT}")
+    _lp_proc, _lp_browser = _start_lightpanda()
+    if _lp_browser is None:
+        _LIGHTPANDA_AVAILABLE = False
 
 
 def _ensure_chromium():
@@ -128,22 +155,12 @@ def _ensure_lightpanda():
     if _lp_proc:
         try:
             _lp_proc.kill()
+            _lp_proc.wait()
         except Exception:
             pass
-    _lp_proc = subprocess.Popen(
-        ["lightpanda", "serve", "--host", "127.0.0.1", "--port", str(_LIGHTPANDA_PORT)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    for _ in range(30):
-        try:
-            urllib.request.urlopen(
-                f"http://127.0.0.1:{_LIGHTPANDA_PORT}/json/version", timeout=1
-            )
-            break
-        except Exception:
-            _time.sleep(0.2)
-    _lp_browser = _pw.chromium.connect_over_cdp(f"http://127.0.0.1:{_LIGHTPANDA_PORT}")
+    _lp_proc, _lp_browser = _start_lightpanda()
+    if _lp_browser is None:
+        raise RuntimeError("Lightpanda failed to start")
 
 
 def _fetch_script_from_s3(s3_uri):
@@ -171,9 +188,15 @@ def handler(event, context):
         }
 
     if requested == "chromium" and not _CHROMIUM_AVAILABLE:
-        return {"statusCode": 400, "body": "Browser 'chromium' is not available in this image"}
+        return {
+            "statusCode": 400,
+            "body": "Browser 'chromium' is not available in this image",
+        }
     if requested == "lightpanda" and not _LIGHTPANDA_AVAILABLE:
-        return {"statusCode": 400, "body": "Browser 'lightpanda' is not available in this image"}
+        return {
+            "statusCode": 400,
+            "body": "Browser 'lightpanda' is not available in this image",
+        }
 
     if requested:
         use_backend = requested
@@ -188,7 +211,10 @@ def handler(event, context):
         _ensure_chromium()
         active_browser = _chromium_browser
     else:
-        _ensure_lightpanda()
+        try:
+            _ensure_lightpanda()
+        except RuntimeError as e:
+            return {"statusCode": 500, "body": str(e)}
         active_browser = _lp_browser
 
     # --- Validate inputs ---
@@ -205,7 +231,10 @@ def handler(event, context):
     try:
         timeout_ms = int(event.get("timeout", 30)) * 1000
     except (TypeError, ValueError):
-        return {"statusCode": 400, "body": "Field 'timeout' must be a number (seconds)"}
+        return {
+            "statusCode": 400,
+            "body": "Field 'timeout' must be a number (seconds)",
+        }
 
     viewport = event.get("viewport", {"width": 1280, "height": 720})
     if not isinstance(viewport, dict) or "width" not in viewport or "height" not in viewport:
@@ -243,6 +272,9 @@ def handler(event, context):
 
         result = {}
 
+        # __builtins__ is intentionally omitted so Python injects the full
+        # builtins module -- scripts can use import, open(), etc.
+        # See the Security section in README for the trust model.
         exec(
             script,
             {
