@@ -15,6 +15,15 @@
   <strong>Headless browser</strong> | <strong>Web scraping</strong> | <strong>Browser automation</strong> | <strong>Serverless</strong> | <strong>AWS Lambda container</strong>
 </p>
 
+<p align="center">
+  <a href="https://github.com/dgallitelli/lambda-theatre/actions/workflows/ci.yml"><img src="https://github.com/dgallitelli/lambda-theatre/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white" alt="Python 3.12">
+  <img src="https://img.shields.io/badge/playwright-1.58-green?logo=playwright&logoColor=white" alt="Playwright">
+  <img src="https://img.shields.io/badge/chromium-headless-orange?logo=googlechrome&logoColor=white" alt="Chromium">
+  <img src="https://img.shields.io/badge/AWS-Lambda-FF9900?logo=awslambda&logoColor=white" alt="AWS Lambda">
+  <a href="https://github.com/dgallitelli/lambda-theatre/blob/main/LICENSE"><img src="https://img.shields.io/github/license/dgallitelli/lambda-theatre" alt="License"></a>
+</p>
+
 ---
 
 **Table of contents:** [How it works](#how-it-works) | [Quick start](#quick-start) | [Usage](#usage) | [Writing scripts](#writing-scripts) | [Examples](#examples) | [Benchmarks](#benchmarks) | [Cold start optimization](#cold-start-optimization) | [Security](#security) | [Project structure](#project-structure)
