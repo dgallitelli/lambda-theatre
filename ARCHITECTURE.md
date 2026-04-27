@@ -180,6 +180,8 @@ flowchart TD
     end
 ```
 
+> **Important:** The handler returns `{"statusCode": 200, "body": "<JSON string>"}` where `body` is a JSON-encoded string, not an object. To pass data between steps, use a [Pass state with `States.StringToJson`](https://docs.aws.amazon.com/step-functions/latest/dg/amazon-states-language-intrinsic-functions.html) to deserialize `body` before accessing nested fields like `cookies`. The example below is simplified for readability — a production workflow needs this deserialization step.
+
 **State machine definition:**
 
 ```json
@@ -221,7 +223,6 @@ Key points:
 - Use Express Workflows for sub-5-minute flows (cheaper, synchronous)
 - Use Standard Workflows for longer flows or those needing retry/error handling
 - Each step is a separate Lambda invocation but likely hits a warm browser
-- **Note on state passing:** The handler returns `{"statusCode": 200, "body": "<JSON string>"}`. The `body` field is a JSON-encoded string, not an object. To pass data between steps, you need to parse it — use a [Pass state with intrinsic functions](https://docs.aws.amazon.com/step-functions/latest/dg/amazon-states-language-intrinsic-functions.html) (`States.StringToJson`) or an intermediate Lambda to deserialize `$.login.body` before accessing nested fields like `cookies`.
 
 ### Pattern 4: EventBridge scheduled scraping
 

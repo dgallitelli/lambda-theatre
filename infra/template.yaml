@@ -39,6 +39,7 @@ Resources:
           - !Ref "AWS::NoValue"
     Metadata:
       DockerTag: latest
+      # Relative to this template file (infra/template.yaml), not the project root
       DockerContext: ../src
       Dockerfile: Dockerfile
 

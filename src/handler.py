@@ -21,7 +21,7 @@ Standard imports (import boto3, import time, etc.) work normally in scripts.
 
 Optional event fields:
   - url           navigate before running script
-  - wait_until    "load" | "domcontentloaded" | "networkidle" (default: "load")
+  - wait_until    "load" | "domcontentloaded" | "networkidle" | "commit" (default: "load")
   - timeout       seconds (default: 30)
   - viewport      {width, height} (default: 1280x720)
   - user_agent    custom User-Agent string
@@ -49,12 +49,14 @@ CHROMIUM_ARGS = [
     "--disable-renderer-backgrounding",
     "--disable-backgrounding-occluded-windows",
     "--disable-ipc-flooding-protection",
+    "--disable-features=PaintHolding",
     "--metrics-recording-only",
     "--mute-audio",
     "--font-render-hinting=none",
     "--disk-cache-dir=/tmp/chrome-cache",
 ]
 
+_VALID_WAIT_UNTIL = {"load", "domcontentloaded", "networkidle", "commit"}
 _DEBUG = os.environ.get("PLAYWRIGHT_DEBUG", "").lower() in ("1", "true")
 
 # --- Init phase: launch browser ONCE (free, not billed) ---
@@ -66,7 +68,7 @@ def _ensure_browser():
     global _browser
     try:
         if _browser and _browser.is_connected():
-            _browser.contexts
+            _browser.contexts  # probe: throws if the browser process died
             return
     except Exception:
         pass
@@ -106,12 +108,18 @@ def handler(event, context):
     except (TypeError, ValueError):
         return {"statusCode": 400, "body": "Field 'timeout' must be a number (seconds)"}
 
+    viewport = event.get("viewport", {"width": 1280, "height": 720})
+    if not isinstance(viewport, dict) or "width" not in viewport or "height" not in viewport:
+        return {"statusCode": 400, "body": "Field 'viewport' must be {\"width\": int, \"height\": int}"}
+
+    wait_until = event.get("wait_until", "load")
+    if wait_until not in _VALID_WAIT_UNTIL:
+        return {"statusCode": 400, "body": f"Field 'wait_until' must be one of {sorted(_VALID_WAIT_UNTIL)}"}
+
     ctx = None
     page = None
     try:
-        context_kwargs = {
-            "viewport": event.get("viewport", {"width": 1280, "height": 720}),
-        }
+        context_kwargs = {"viewport": viewport}
         if event.get("user_agent"):
             context_kwargs["user_agent"] = event["user_agent"]
 
@@ -121,11 +129,15 @@ def handler(event, context):
         page.set_default_navigation_timeout(timeout_ms)
 
         if url:
-            page.goto(url, wait_until=event.get("wait_until", "load"))
+            page.goto(url, wait_until=wait_until)
 
         result = {}
 
+        # __builtins__ is intentionally omitted so Python injects the full
+        # builtins module -- scripts can use import, open(), etc.
+        # See the Security section in README for the trust model.
         exec(script, {
+            "__name__": "__script__",
             "page": page,
             "browser": _browser,
             "context": ctx,

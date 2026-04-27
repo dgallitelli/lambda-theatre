@@ -5,7 +5,6 @@
 # Usage: {"url": "https://example.com", "params": {"bucket": "my-bucket", "key": "screenshots/example.png"}}
 
 import boto3
-import base64
 
 buf = page.screenshot(full_page=True)
 

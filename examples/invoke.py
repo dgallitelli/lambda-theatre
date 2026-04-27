@@ -64,8 +64,11 @@ def main():
     parser.add_argument("--port", type=int, default=9000, help="Local Docker container port")
     args = parser.parse_args()
 
-    if not args.script and not args.file and not args.s3:
+    sources = sum(1 for x in [args.script, args.file, args.s3] if x)
+    if sources == 0:
         parser.error("Provide --script, --file, or --s3")
+    if sources > 1:
+        parser.error("Provide only one of --script, --file, or --s3")
 
     payload = {"timeout": args.timeout, "wait_until": args.wait_until}
 

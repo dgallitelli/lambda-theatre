@@ -19,7 +19,7 @@ Event params:
 
 import time
 
-LIMIT = event.get("params", {}).get("limit", 5)
+LIMIT = int(event.get("params", {}).get("limit", 5))
 
 # Step 1: Navigate to Hacker News
 page.goto("https://news.ycombinator.com", wait_until="domcontentloaded")
