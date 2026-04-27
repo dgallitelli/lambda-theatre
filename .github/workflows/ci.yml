@@ -42,7 +42,7 @@ jobs:
       - name: Run CLI unit tests
         run: pytest tests/test_invoke_cli.py -v
 
-  integration-tests:
+  integration-tests-chromium:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,11 +55,30 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest pytest-timeout
 
-      - name: Build Docker image
+      - name: Build Chromium image
         run: docker build -t lambda-theatre src/
 
-      - name: Run handler tests
-        run: pytest tests/test_handler_unit.py tests/test_handler_integration.py -v --timeout=120
+      - name: Run Chromium handler tests
+        run: pytest tests/test_handler_unit.py tests/test_handler_integration.py -v --timeout=120 -k "not Lightpanda"
+
+  integration-tests-lightpanda:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: pip install pytest pytest-timeout
+
+      - name: Build Lightpanda image
+        run: docker build -t lambda-theatre-lightpanda -f src/Dockerfile.lightpanda src/
+
+      - name: Run Lightpanda handler tests
+        run: pytest tests/test_handler_integration.py -v --timeout=120 -k "Lightpanda"
 
   cve-scan:
     runs-on: ubuntu-latest
