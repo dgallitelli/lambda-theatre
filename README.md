@@ -162,13 +162,24 @@ This image applies several techniques to minimize cold start latency:
 4. **Layer ordering** — Dockerfile layers ordered by change frequency (OS first, handler code last)
 5. **Stripped locales and docs** — unnecessary Chromium files removed from image
 
-To keep the function warm and avoid cold starts during normal traffic, add a scheduled warmup rule:
+### Keeping the function warm
+
+To avoid cold starts during normal traffic, add a scheduled warmup ping:
 
 ```bash
 aws events put-rule --name playwright-warmup --schedule-expression "rate(5 minutes)"
 ```
 
-The handler detects empty events and returns immediately, keeping the execution environment alive.
+The handler detects empty events and returns immediately (~100ms), keeping the execution environment alive.
+
+**Cost comparison (2048 MB, keeping 1 instance warm):**
+
+| Strategy | Monthly cost | Guarantee |
+|----------|-------------|-----------|
+| EventBridge warmup (5 min) | ~$0.07 | Best-effort (Lambda may occasionally recycle the environment) |
+| Provisioned concurrency = 1 | ~$21.60 | Guaranteed always-warm |
+
+The warmup approach is **300x cheaper** and works well in practice — Lambda rarely recycles environments that are pinged every 5 minutes. Use provisioned concurrency only when you need a hard SLA on response latency.
 
 ## Security
 
