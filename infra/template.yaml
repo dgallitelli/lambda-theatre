@@ -39,7 +39,7 @@ Resources:
           - !Ref "AWS::NoValue"
     Metadata:
       DockerTag: latest
-      DockerContext: .
+      DockerContext: ../src
       Dockerfile: Dockerfile
 
 Outputs:

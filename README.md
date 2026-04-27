@@ -51,7 +51,7 @@ make test
 Or manually:
 
 ```bash
-docker build -t playwright-lambda .
+docker build -t playwright-lambda src/
 docker run -d --name test -p 9000:8080 playwright-lambda
 sleep 3
 
@@ -65,7 +65,7 @@ docker rm -f test
 ### 2. Deploy to AWS
 
 ```bash
-sam build && sam deploy --guided --stack-name playwright-lambda
+sam build --template infra/template.yaml && sam deploy --guided --stack-name playwright-lambda
 ```
 
 ### 3. Invoke
@@ -134,7 +134,7 @@ Your script receives these variables pre-bound. Standard `import` statements als
 The Lambda function needs `s3:GetObject` permission on the bucket. The SAM template handles this automatically — pass the bucket name at deploy time:
 
 ```bash
-sam deploy --parameter-overrides ScriptBucket=my-bucket
+sam deploy --template infra/template.yaml --parameter-overrides ScriptBucket=my-bucket
 ```
 
 Or add the permission manually if deploying outside SAM:
@@ -281,21 +281,23 @@ The warmup approach is **300x cheaper** and works well in practice — Lambda ra
 ## Project structure
 
 ```
-Dockerfile           Container image (Ubuntu 24.04 + Chromium + Playwright + Lambda RIE)
-handler.py           Lambda handler (script injection runtime)
-entry.sh             Bootstrap (Lambda RIE for local, awslambdaric for deployed)
-requirements.txt     Python dependencies
-template.yaml        SAM template (one function, no public access)
-Makefile             build / test / deploy shortcuts
+src/
+  Dockerfile           Container image (Ubuntu 24.04 + Chromium + Playwright + Lambda RIE)
+  handler.py           Lambda handler (script injection runtime)
+  entry.sh             Bootstrap (Lambda RIE for local, awslambdaric for deployed)
+  requirements.txt     Python dependencies
+infra/
+  template.yaml        SAM template (one function, no public access)
 examples/
-  invoke.py          Python helper for invoking the function (local + deployed)
+  invoke.py            Python helper for invoking the function (local + deployed)
   hacker_news_scraper.py   Multi-step scraper (navigates 5+ pages)
   extract_links.py         Extract all links from a page
   form_fill_submit.py      Fill and submit a login form
   screenshot_to_s3.py      Full-page screenshot uploaded to S3
   todomvc_add_items.py     React SPA interaction
   wait_and_extract.py      Wait for dynamic content, extract structured data
-ARCHITECTURE.md      Integration patterns (API Gateway, Step Functions, SQS, EventBridge)
+Makefile               build / test / deploy shortcuts
+ARCHITECTURE.md        Integration patterns (API Gateway, Step Functions, SQS, EventBridge)
 ```
 
 ## Why container image?

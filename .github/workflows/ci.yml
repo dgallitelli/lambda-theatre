@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build Docker image
-        run: docker build -t playwright-lambda .
+        run: docker build -t playwright-lambda src/
 
       - name: Smoke test
         run: |
