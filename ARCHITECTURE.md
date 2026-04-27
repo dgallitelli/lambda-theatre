@@ -2,26 +2,68 @@
 
 ## Container internals
 
-```
-Lambda invocation
-  |
-  v
-handler.py (module-level init: Chromium launched during free init phase)
-  |
-  +-- _ensure_browser()     check browser is alive, relaunch if crashed
-  +-- new_context()          fresh BrowserContext per invocation
-  +-- new_page()             fresh Page per invocation
-  +-- goto(url)              navigate if event["url"] provided
-  +-- exec(script)           run user's Playwright code
-  +-- page.close()           cleanup
-  +-- context.close()        cleanup
-  |
-  browser stays alive for warm starts
+```mermaid
+flowchart TD
+    A["Lambda invocation"] --> B["handler.py"]
+    B --> C{"Browser alive?"}
+    C -- yes --> D["new_context()"]
+    C -- no --> R["relaunch Chromium"] --> D
+    D --> E["new_page()"]
+    E --> F["goto(url)"]
+    F --> G["exec(script)"]
+    G --> H["page.close()"]
+    H --> I["context.close()"]
+    I --> J(["Return result"])
+
+    K["Module-level init\n(free, not billed)"] -.-> L["Chromium launched\nat import time"]
+    L -.-> C
+
+    style K fill:#2d6a4f,color:#fff
+    style L fill:#2d6a4f,color:#fff
+    style J fill:#1b4332,color:#fff
 ```
 
 ### Why module-level launch?
 
 Lambda's init phase runs before the first invocation and is **not billed**. By launching Chromium during init, the cold start cost is absorbed into free time. On warm starts (subsequent invocations reusing the same execution environment), the browser is already running — only page creation and navigation are needed.
+
+### Cold vs. warm start lifecycle
+
+```mermaid
+sequenceDiagram
+    participant L as Lambda Service
+    participant H as handler.py
+    participant C as Chromium
+
+    rect rgb(45, 106, 79)
+        Note over L,C: Cold start (init phase — free)
+        L->>H: import handler
+        H->>C: chromium.launch()
+        C-->>H: browser ready
+    end
+
+    rect rgb(64, 64, 64)
+        Note over L,C: Invocation 1
+        L->>H: handler(event)
+        H->>C: new_context() + new_page()
+        C-->>H: page ready
+        H->>C: goto(url) + exec(script)
+        C-->>H: result
+        H->>C: page.close() + context.close()
+        H-->>L: response
+    end
+
+    rect rgb(64, 64, 64)
+        Note over L,C: Invocation 2 (warm — browser reused)
+        L->>H: handler(event)
+        H->>C: new_context() + new_page()
+        C-->>H: page ready
+        H->>C: goto(url) + exec(script)
+        C-->>H: result
+        H->>C: page.close() + context.close()
+        H-->>L: response
+    end
+```
 
 ### Chromium flags
 
@@ -48,11 +90,11 @@ The handler launches Chromium with flags optimized for Lambda's environment:
 
 The simplest pattern. Your application invokes the Lambda function directly via the AWS SDK.
 
-```
-[Your app] --boto3.invoke()--> [Lambda] --Playwright--> [Target site]
-                  |
-                  +-- event = {url, script}
-                  +-- response = {statusCode, body}
+```mermaid
+flowchart LR
+    A["Your app\n(boto3)"] -->|"event: {url, script}"| B["Lambda\nhandler.py"]
+    B -->|"Playwright"| C["Target site"]
+    B -->|"response: {statusCode, body}"| A
 ```
 
 Best for: backend services, data pipelines, scheduled jobs.
@@ -63,11 +105,13 @@ See [`examples/invoke.py`](examples/invoke.py) for a complete helper.
 
 Expose the function behind a private API Gateway for internal services.
 
-```
-[Internal service] --HTTPS--> [API Gateway (private)] --proxy--> [Lambda]
-                                    |
-                                    +-- VPC endpoint or IAM auth
-                                    +-- no public access
+```mermaid
+flowchart LR
+    A["Internal service"] -->|HTTPS| B["API Gateway\n(PRIVATE + IAM auth)"]
+    B -->|proxy| C["Lambda"]
+    C -->|Playwright| D["Target site"]
+
+    style B fill:#d4a017,color:#000
 ```
 
 **SAM template addition:**
@@ -112,20 +156,28 @@ Key points:
 
 Chain multiple browser operations across invocations. Each step gets a fresh page but reuses the warm browser.
 
-```
-[Step Functions]
-  |
-  +-- Step 1: Login
-  |     event: {url: "https://site.com/login", script: "...login...", params: {user, pass}}
-  |     output: {cookies: [...]}
-  |
-  +-- Step 2: Navigate to dashboard
-  |     event: {url: "https://site.com/dashboard", script: "...extract...", params: {cookies}}
-  |     output: {data: [...]}
-  |
-  +-- Step 3: Export report
-        event: {url: "https://site.com/report", script: "...download..."}
-        output: {s3_path: "s3://..."}
+```mermaid
+flowchart TD
+    SF["Step Functions"] --> S1
+    
+    subgraph S1 ["Step 1: Login"]
+        direction LR
+        S1a["fill email + password"] --> S1b["click submit"] --> S1c["capture cookies"]
+    end
+    
+    S1 -->|"cookies"| S2
+    
+    subgraph S2 ["Step 2: Extract data"]
+        direction LR
+        S2a["inject cookies"] --> S2b["navigate dashboard"] --> S2c["extract JSON"]
+    end
+    
+    S2 -->|"data"| S3
+    
+    subgraph S3 ["Step 3: Export"]
+        direction LR
+        S3a["generate report"] --> S3b["upload to S3"]
+    end
 ```
 
 **State machine definition:**
@@ -175,13 +227,11 @@ Key points:
 
 Scrape a page on a schedule (e.g., price monitoring, status checks).
 
-```
-[EventBridge rule: rate(1 hour)]
-  |
-  v
-[Lambda] --Playwright--> [Target site]
-  |
-  +-- write results to DynamoDB / S3 / SNS
+```mermaid
+flowchart LR
+    A["EventBridge rule\nrate(1 hour)"] -->|trigger| B["Lambda"]
+    B -->|Playwright| C["Target site"]
+    B -->|results| D["DynamoDB / S3 / SNS"]
 ```
 
 **SAM template addition:**
@@ -208,11 +258,17 @@ Resources:
 
 Process a queue of URLs, one per invocation. Lambda scales automatically.
 
-```
-[Producer] --URLs--> [SQS Queue] --trigger--> [Lambda (concurrent)]
-                                                  |
-                                                  +-- each message = one URL + script
-                                                  +-- results to S3 / DynamoDB
+```mermaid
+flowchart LR
+    A["Producer"] -->|URLs| B["SQS Queue"]
+    B -->|trigger| C1["Lambda 1"]
+    B -->|trigger| C2["Lambda 2"]
+    B -->|trigger| C3["Lambda N"]
+    C1 --> D["S3 / DynamoDB"]
+    C2 --> D
+    C3 --> D
+
+    style B fill:#d4a017,color:#000
 ```
 
 **SAM template addition:**
