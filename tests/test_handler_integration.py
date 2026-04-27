@@ -197,3 +197,106 @@ class TestConsecutiveInvocations:
             body = json.loads(r["body"])
             assert body["run"] == i
             assert body["title"] == "Example Domain"
+
+
+class TestLightpandaNavigation:
+    def test_page_title(self, lightpanda_container):
+        r = lightpanda_container(
+            {
+                "url": "https://example.com",
+                "script": "result['title'] = page.title()",
+            }
+        )
+        assert r["statusCode"] == 200
+        body = json.loads(r["body"])
+        assert body["title"] == "Example Domain"
+
+    def test_page_content(self, lightpanda_container):
+        r = lightpanda_container(
+            {
+                "url": "https://example.com",
+                "script": "result['html'] = page.content()[:100]",
+            }
+        )
+        assert r["statusCode"] == 200
+        body = json.loads(r["body"])
+        assert "<html" in body["html"].lower()
+
+    def test_evaluate_js(self, lightpanda_container):
+        r = lightpanda_container(
+            {
+                "url": "https://example.com",
+                "script": "result['links'] = page.evaluate('document.querySelectorAll(\"a\").length')",
+            }
+        )
+        assert r["statusCode"] == 200
+        body = json.loads(r["body"])
+        assert isinstance(body["links"], (int, float))
+
+
+class TestLightpandaInteraction:
+    def test_todomvc_fill_and_enter(self, lightpanda_container):
+        r = lightpanda_container(
+            {
+                "url": "https://todomvc.com/examples/react/dist/",
+                "script": (
+                    "page.wait_for_selector('input.new-todo')\n"
+                    "page.fill('input.new-todo', 'Test item')\n"
+                    "page.press('input.new-todo', 'Enter')\n"
+                    "result['count'] = page.locator('ul.todo-list li').count()"
+                ),
+            }
+        )
+        assert r["statusCode"] == 200
+        body = json.loads(r["body"])
+        assert body["count"] == 1
+
+
+class TestLightpandaParams:
+    def test_event_params_passed_to_script(self, lightpanda_container):
+        r = lightpanda_container(
+            {
+                "script": "result['greeting'] = f\"Hello {event['params']['name']}\"",
+                "params": {"name": "Lambda"},
+            }
+        )
+        assert r["statusCode"] == 200
+        body = json.loads(r["body"])
+        assert body["greeting"] == "Hello Lambda"
+
+
+class TestLightpandaErrors:
+    def test_script_syntax_error(self, lightpanda_container):
+        r = lightpanda_container(
+            {
+                "script": "def broken(",
+            }
+        )
+        assert r["statusCode"] == 500
+        body = json.loads(r["body"])
+        assert body["error"] == "SyntaxError"
+
+    def test_script_runtime_error(self, lightpanda_container):
+        r = lightpanda_container(
+            {
+                "script": "x = 1 / 0",
+            }
+        )
+        assert r["statusCode"] == 500
+        body = json.loads(r["body"])
+        assert body["error"] == "ZeroDivisionError"
+
+
+class TestLightpandaConsecutive:
+    def test_browser_survives_multiple_invocations(self, lightpanda_container):
+        for i in range(5):
+            r = lightpanda_container(
+                {
+                    "url": "https://example.com",
+                    "script": f"result['run'] = {i}; result['title'] = page.title()",
+                }
+            )
+            assert r["statusCode"] == 200, f"Failed on invocation {i}"
+            body = json.loads(r["body"])
+            assert body["run"] == i
+            assert body["title"] == "Example Domain"
