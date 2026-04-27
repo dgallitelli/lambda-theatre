@@ -1,12 +1,18 @@
 <p align="center">
-  <img src="assets/logo.png" alt="aws-lambda-chromium-playwright-python" width="200" />
+  <img src="assets/logo.png" alt="Lambda Theatre" width="200" />
 </p>
 
-<h1 align="center">aws-lambda-chromium-playwright-python</h1>
+<h1 align="center">Lambda Theatre</h1>
 
 <p align="center">
-  Container image for running Playwright + Chromium on AWS Lambda.<br>
-  Build the image once, inject Playwright scripts at runtime via the event payload or S3.
+  <em>Build the theatre once. Change the play every night.</em><br><br>
+  Playwright + Chromium on AWS Lambda as a container image.<br>
+  Inject Python browser automation scripts at runtime via event payload or S3.<br>
+  No rebuild needed — one image, unlimited scripts.
+</p>
+
+<p align="center">
+  <strong>Headless browser</strong> | <strong>Web scraping</strong> | <strong>Browser automation</strong> | <strong>Serverless</strong> | <strong>AWS Lambda container</strong>
 </p>
 
 ---
