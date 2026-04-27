@@ -1,4 +1,4 @@
-.PHONY: build test deploy clean
+.PHONY: build test test-unit test-all deploy clean
 
 IMAGE_NAME ?= lambda-theatre
 CONTAINER_NAME ?= lambda-theatre-test
@@ -19,6 +19,12 @@ test: build
 	@curl -s -XPOST "http://localhost:$(PORT)/2015-03-31/functions/function/invocations" \
 		-d '{"url":"https://todomvc.com/examples/react/dist/","script":"page.wait_for_selector(\"input.new-todo\")\npage.fill(\"input.new-todo\",\"Test\")\npage.press(\"input.new-todo\",\"Enter\")\nresult[\"count\"]=page.locator(\"ul.todo-list li\").count()"}' | python3 -m json.tool
 	@docker rm -f $(CONTAINER_NAME)
+
+test-unit:
+	pytest tests/test_invoke_cli.py -v
+
+test-all: build
+	pytest tests/ -v --timeout=120
 
 deploy: build
 	sam build --template infra/template.yaml

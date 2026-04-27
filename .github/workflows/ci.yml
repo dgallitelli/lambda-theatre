@@ -7,34 +7,37 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  unit-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Run CLI unit tests
+        run: pytest tests/test_invoke_cli.py -v
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: pip install pytest
+
       - name: Build Docker image
         run: docker build -t lambda-theatre src/
 
-      - name: Smoke tests
-        run: |
-          docker run -d --name test -p 9000:8080 lambda-theatre
-          sleep 5
-
-          echo "--- Test: page title ---"
-          RESPONSE=$(curl -s -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" \
-            -d '{"url": "https://example.com", "script": "result[\"title\"] = page.title()"}')
-          echo "$RESPONSE"
-          echo "$RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); assert d['statusCode'] == 200, f'Expected 200, got {d[\"statusCode\"]}'; print('PASS: page title')"
-
-          echo "--- Test: warmup ping ---"
-          RESPONSE=$(curl -s -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{}')
-          echo "$RESPONSE"
-          echo "$RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); assert d['statusCode'] == 200, f'Expected 200, got {d[\"statusCode\"]}'; print('PASS: warmup ping')"
-
-          echo "--- Test: invalid wait_until returns 400 ---"
-          RESPONSE=$(curl -s -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" \
-            -d '{"url": "https://example.com", "script": "pass", "wait_until": "bogus"}')
-          echo "$RESPONSE"
-          echo "$RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); assert d['statusCode'] == 400, f'Expected 400, got {d[\"statusCode\"]}'; print('PASS: input validation')"
-
-          docker rm -f test
+      - name: Run handler tests
+        run: pytest tests/test_handler_unit.py tests/test_handler_integration.py -v --timeout=120
