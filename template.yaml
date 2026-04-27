@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Playwright + Chromium on Lambda (container image).
+  Invoke-only — no public endpoints.
+
+Parameters:
+  MemorySize:
+    Type: Number
+    Default: 2048
+    Description: Lambda memory in MB (minimum 2048 recommended for Chromium)
+  Timeout:
+    Type: Number
+    Default: 120
+    Description: Lambda timeout in seconds
+  ScriptBucket:
+    Type: String
+    Default: ""
+    Description: S3 bucket for Playwright scripts (leave empty to skip S3 policy)
+
+Conditions:
+  HasScriptBucket: !Not [!Equals [!Ref ScriptBucket, ""]]
+
+Resources:
+  PlaywrightFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageConfig:
+        Command: ["handler.handler"]
+      Architectures: [x86_64]
+      Timeout: !Ref Timeout
+      MemorySize: !Ref MemorySize
+      Policies:
+        - !If
+          - HasScriptBucket
+          - S3ReadPolicy:
+              BucketName: !Ref ScriptBucket
+          - !Ref "AWS::NoValue"
+    Metadata:
+      DockerTag: latest
+      DockerContext: .
+      Dockerfile: Dockerfile
+
+Outputs:
+  FunctionArn:
+    Description: Lambda function ARN — invoke via SDK or CLI
+    Value: !GetAtt PlaywrightFunction.Arn
+  FunctionName:
+    Description: Lambda function name
+    Value: !Ref PlaywrightFunction
