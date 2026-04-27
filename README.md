@@ -60,28 +60,39 @@ flowchart LR
 
 ## Quick start
 
-### 1. Build and test locally
+### Option A: Chromium image (full compatibility, ~1.2 GB)
 
 ```bash
-make build
-make test
+make build          # builds the Chromium image
+make test           # smoke-tests it locally
 ```
 
-Or manually:
+### Option B: Lightpanda image (faster, ~450 MB)
 
 ```bash
-docker build -t lambda-theatre src/
-docker run -d --name test -p 9000:8080 lambda-theatre
-sleep 3
+make build-lightpanda   # builds the Lightpanda image
+make test-lightpanda    # smoke-tests it locally
+```
 
+Both images use the same handler and accept the same scripts. Pick whichever fits your workload — see [Browser backends](#browser-backends) for trade-offs.
+
+### Test it locally
+
+```bash
+# Start either image (replace lambda-theatre with lambda-theatre-lightpanda for Lightpanda)
+docker run -d --name test -p 9000:8080 lambda-theatre
+sleep 5
+
+# Extract a page title
 curl -s -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" \
   -d '{"url": "https://example.com", "script": "result[\"title\"] = page.title()"}' \
   | python3 -m json.tool
 
+# Clean up
 docker rm -f test
 ```
 
-### 2. Deploy to AWS
+### Deploy to AWS
 
 ```bash
 sam build --template infra/template.yaml && sam deploy --guided --stack-name lambda-theatre
@@ -250,44 +261,58 @@ See the [`examples/`](examples/) directory for all example scripts.
 
 ## Browser backends
 
-Lambda Theatre supports two browser backends. Each ships as its own container image.
+Lambda Theatre supports two browser backends. Each ships as its own container image. **Your scripts work on both without changes.**
 
-| Backend | Image | Size | Best for |
-|---------|-------|------|----------|
-| **Chromium** (default) | `lambda-theatre` | ~1.2 GB | Full compatibility — SPAs, complex JS, screenshots, PDF |
-| **Lightpanda** | `lambda-theatre-lightpanda` | ~450 MB | Speed — 2-4x faster on light pages, 63% smaller image |
+| | Chromium | Lightpanda |
+|---|---|---|
+| **Image** | `lambda-theatre` | `lambda-theatre-lightpanda` |
+| **Size** | ~1.2 GB | ~450 MB |
+| **Build** | `make build` | `make build-lightpanda` |
+| **Test** | `make test` | `make test-lightpanda` |
+| **Best for** | Full compatibility — SPAs, complex JS, screenshots, PDF | Speed and size — 2-4x faster on most pages, 63% smaller |
+| **Dockerfile** | `src/Dockerfile` | `src/Dockerfile.lightpanda` |
 
-### Building the Lightpanda image
+### Which backend should I use?
+
+**Start with Chromium** if you need full browser compatibility or aren't sure. It works with everything.
+
+**Switch to Lightpanda** when:
+- You want faster cold starts (smaller image = faster Lambda image pull)
+- Your target pages are mostly server-rendered HTML or light JavaScript
+- You want to minimize Lambda costs (faster execution = less billed duration)
+- You've tested your scripts against Lightpanda and they work
+
+### How it works
+
+Each container image includes exactly one browser. The handler detects which one is installed and uses it automatically. You don't need to change your scripts or event payloads — the same `page`, `browser`, and `context` objects work on both backends.
 
 ```bash
-make build-lightpanda
-make test-lightpanda
-```
+# Chromium image — scripts run against Chromium
+docker build -t lambda-theatre src/
+docker run -d --name test -p 9000:8080 lambda-theatre
 
-Or manually:
-
-```bash
+# Lightpanda image — same scripts, same API, different browser
 docker build -t lambda-theatre-lightpanda -f src/Dockerfile.lightpanda src/
+docker run -d --name test -p 9000:8080 lambda-theatre-lightpanda
 ```
 
-### Choosing a backend
-
-Deploy whichever image fits your workload. The handler auto-detects the available backend. To request a specific backend explicitly (useful if both are installed locally):
+If you need to explicitly request a backend (e.g., testing locally with both installed), use the `browser` event field:
 
 ```json
 {"browser": "lightpanda", "url": "https://example.com", "script": "result['title'] = page.title()"}
 ```
 
-### Lightpanda trade-offs
+If the requested backend isn't available in the image, the handler returns a `400` error with a clear message.
 
-Lightpanda is a Zig-based headless browser that speaks the Chrome DevTools Protocol. Scripts work identically on both backends — the `page`, `browser`, and `context` objects use the same Playwright API.
+### Lightpanda limitations
 
-**Limitations vs Chromium:**
-- No `viewport` support (viewport option is ignored)
-- No `wait_until` support in navigation (pages load fully before returning)
-- May fail on navigation-heavy pages that destroy execution contexts mid-load
-- Slower on extremely JS-heavy pages (no JIT compiler)
-- Nightly builds only (x86_64 Linux)
+[Lightpanda](https://github.com/lightpanda-io/browser) is a Zig-based headless browser that speaks the Chrome DevTools Protocol (CDP). It is faster and smaller than Chromium, but has some limitations:
+
+- **No `viewport` support** — the `viewport` event field is ignored (Lightpanda uses a default viewport)
+- **No `wait_until` support** — the `wait_until` event field is ignored (pages load fully before returning)
+- **Navigation-heavy pages may fail** — pages that redirect or destroy execution contexts mid-load can cause `"Execution context was destroyed"` errors
+- **Slower on JS-heavy pages** — Lightpanda has no JIT compiler, so pages with heavy JavaScript execution (large SPAs, complex frameworks) may be slower than Chromium
+- **Nightly builds only** — Lightpanda distributes x86_64 Linux nightly builds; no stable releases yet
 
 ## Benchmarks
 
