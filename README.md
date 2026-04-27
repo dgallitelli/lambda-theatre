@@ -6,7 +6,7 @@
 
 <p align="center">
   <em>Build the theatre once. Change the play every night.</em><br><br>
-  Playwright + Chromium on AWS Lambda as a container image.<br>
+  Playwright + Chromium (or Lightpanda) on AWS Lambda as a container image.<br>
   Inject Python browser automation scripts at runtime via event payload or S3.<br>
   No rebuild needed — one image, unlimited scripts.
 </p>
@@ -26,7 +26,7 @@
 
 ---
 
-**Table of contents:** [How it works](#how-it-works) | [Quick start](#quick-start) | [Usage](#usage) | [Writing scripts](#writing-scripts) | [Examples](#examples) | [Benchmarks](#benchmarks) | [Cold start optimization](#cold-start-optimization) | [Security](#security) | [Project structure](#project-structure)
+**Table of contents:** [How it works](#how-it-works) | [Quick start](#quick-start) | [Usage](#usage) | [Writing scripts](#writing-scripts) | [Browser backends](#browser-backends) | [Examples](#examples) | [Benchmarks](#benchmarks) | [Cold start optimization](#cold-start-optimization) | [Security](#security) | [Project structure](#project-structure)
 
 ---
 
@@ -109,6 +109,7 @@ python3 examples/invoke.py --url https://example.com --script "result['title'] =
 
 ```json
 {
+  "browser": "chromium",
   "url": "https://example.com",
   "script": "result['title'] = page.title()",
   "s3_uri": "s3://my-bucket/scripts/scrape.py",
@@ -124,10 +125,11 @@ python3 examples/invoke.py --url https://example.com --script "result['title'] =
 |-------|----------|-------------|
 | `script` | One of `script` or `s3_uri` | Inline Python code (takes precedence over `s3_uri`) |
 | `s3_uri` | One of `script` or `s3_uri` | S3 path to a `.py` script file (ignored if `script` is set) |
+| `browser` | No | `"chromium"` \| `"lightpanda"` (default: auto-detect from image) |
 | `url` | No | Navigate to this URL before running the script |
 | `timeout` | No | Timeout in seconds (default: 30) |
 | `wait_until` | No | `load` \| `domcontentloaded` \| `networkidle` (default: `load`) |
-| `viewport` | No | `{width, height}` (default: 1280x720) |
+| `viewport` | No | `{width, height}` (default: 1280x720, Chromium only) |
 | `user_agent` | No | Custom User-Agent string |
 | `params` | No | Arbitrary data accessible as `event["params"]` in your script |
 
@@ -246,6 +248,47 @@ python3 examples/invoke.py --s3 s3://my-bucket/scripts/hacker_news_scraper.py --
 
 See the [`examples/`](examples/) directory for all example scripts.
 
+## Browser backends
+
+Lambda Theatre supports two browser backends. Each ships as its own container image.
+
+| Backend | Image | Size | Best for |
+|---------|-------|------|----------|
+| **Chromium** (default) | `lambda-theatre` | ~1.2 GB | Full compatibility — SPAs, complex JS, screenshots, PDF |
+| **Lightpanda** | `lambda-theatre-lightpanda` | ~450 MB | Speed — 2-4x faster on light pages, 63% smaller image |
+
+### Building the Lightpanda image
+
+```bash
+make build-lightpanda
+make test-lightpanda
+```
+
+Or manually:
+
+```bash
+docker build -t lambda-theatre-lightpanda -f src/Dockerfile.lightpanda src/
+```
+
+### Choosing a backend
+
+Deploy whichever image fits your workload. The handler auto-detects the available backend. To request a specific backend explicitly (useful if both are installed locally):
+
+```json
+{"browser": "lightpanda", "url": "https://example.com", "script": "result['title'] = page.title()"}
+```
+
+### Lightpanda trade-offs
+
+Lightpanda is a Zig-based headless browser that speaks the Chrome DevTools Protocol. Scripts work identically on both backends — the `page`, `browser`, and `context` objects use the same Playwright API.
+
+**Limitations vs Chromium:**
+- No `viewport` support (viewport option is ignored)
+- No `wait_until` support in navigation (pages load fully before returning)
+- May fail on navigation-heavy pages that destroy execution contexts mid-load
+- Slower on extremely JS-heavy pages (no JIT compiler)
+- Nightly builds only (x86_64 Linux)
+
 ## Benchmarks
 
 Measured on AWS Lambda (us-east-1) using [Lambda Power Tuning](https://github.com/alexcasalboni/aws-lambda-power-tuning) with the [Hacker News scraper](examples/hacker_news_scraper.py) (navigates to HN, visits 5 story URLs, extracts metadata from each). 10 invocations per memory size.
@@ -343,7 +386,8 @@ The warmup approach is **300x cheaper** and works well in practice — Lambda ra
 
 ```
 src/
-  Dockerfile           Container image (Ubuntu 25.04 + Chromium + Playwright + Lambda RIE)
+  Dockerfile           Chromium image (Ubuntu 25.04 + Chromium + Playwright + Lambda RIE)
+  Dockerfile.lightpanda  Lightpanda image (no Chromium, ~450 MB)
   handler.py           Lambda handler (script injection runtime)
   entry.sh             Bootstrap (Lambda RIE for local, awslambdaric for deployed)
   requirements.txt     Python dependencies
