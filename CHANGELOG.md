@@ -4,7 +4,7 @@
 
 Initial release.
 
-- Playwright + Chromium on Ubuntu 24.04 container image
+- Playwright + Chromium on Ubuntu 25.04 container image (Python 3.13, GLIBC 2.41)
 - Module-level browser launch (Lambda free init phase)
 - Script injection via event payload or S3
 - Optimized Chromium flags for Lambda

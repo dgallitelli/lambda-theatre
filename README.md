@@ -17,7 +17,7 @@
 
 <p align="center">
   <a href="https://github.com/dgallitelli/lambda-theatre/actions/workflows/ci.yml"><img src="https://github.com/dgallitelli/lambda-theatre/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white" alt="Python 3.12">
+  <img src="https://img.shields.io/badge/python-3.13-blue?logo=python&logoColor=white" alt="Python 3.13">
   <img src="https://img.shields.io/badge/playwright-1.58-green?logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/chromium-headless-orange?logo=googlechrome&logoColor=white" alt="Chromium">
   <img src="https://img.shields.io/badge/AWS-Lambda-FF9900?logo=awslambda&logoColor=white" alt="AWS Lambda">
@@ -36,7 +36,7 @@
   <img src="assets/banner.png" alt="Lambda Theatre — How it works" width="800" />
 </p>
 
-The container image ships Chromium and Playwright pre-installed on Ubuntu 24.04. At Lambda cold start, Chromium launches during the **free init phase** (not billed). Your Playwright script runs against the already-warm browser, then the page and context are cleaned up. On warm starts, the browser is reused — only a new page is created.
+The container image ships Chromium and Playwright pre-installed on Ubuntu 25.04. At Lambda cold start, Chromium launches during the **free init phase** (not billed). Your Playwright script runs against the already-warm browser, then the page and context are cleaned up. On warm starts, the browser is reused — only a new page is created.
 
 ```mermaid
 flowchart LR
@@ -343,7 +343,7 @@ The warmup approach is **300x cheaper** and works well in practice — Lambda ra
 
 ```
 src/
-  Dockerfile           Container image (Ubuntu 24.04 + Chromium + Playwright + Lambda RIE)
+  Dockerfile           Container image (Ubuntu 25.04 + Chromium + Playwright + Lambda RIE)
   handler.py           Lambda handler (script injection runtime)
   entry.sh             Bootstrap (Lambda RIE for local, awslambdaric for deployed)
   requirements.txt     Python dependencies
@@ -365,13 +365,13 @@ ARCHITECTURE.md        Integration patterns (API Gateway, Step Functions, SQS, E
 
 Lambda zip deployments have a 250 MB unzipped limit. Chromium alone is ~300 MB. Container images support up to 10 GB, and Lambda caches them across invocations.
 
-Ubuntu 24.04 is used because Playwright's Chromium requires GLIBC 2.39+, which Amazon Linux 2023 does not ship.
+Ubuntu 25.04 is used because Playwright's Chromium requires GLIBC 2.39+, which Amazon Linux 2023 (GLIBC 2.34) does not ship. Ubuntu 25.04 provides GLIBC 2.41 and Python 3.13 out of the box.
 
 ## Requirements
 
 - Docker
 - AWS SAM CLI (for deployment)
-- Python 3.12+ (for local invocation helper)
+- Python 3.12+ (for local invocation helper; container uses 3.13)
 - AWS credentials configured
 
 ## License

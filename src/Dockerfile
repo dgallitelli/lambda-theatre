@@ -1,8 +1,8 @@
-FROM ubuntu:24.04
+FROM ubuntu:25.04
 
 # Layer 1: OS packages (rarely changes)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.12 python3-pip curl ca-certificates && \
+    python3 python3-pip curl ca-certificates && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Layer 2: Playwright + Chromium + system deps (changes on version bumps)
